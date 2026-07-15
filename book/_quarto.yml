@@ -8,8 +8,25 @@ book:
   language: ru
   chapters:
     - index.qmd
+    - lecture-01-intro.qmd
+    - lecture-02-physics.qmd
+    - lecture-03-productivity.qmd
+    - lecture-04-optimization-well.qmd
+    - lecture-05-optimization-field.qmd
+    - lecture-06-fracture-conductivity.qmd
+    - lecture-07-monitoring.qmd
+    - lecture-08-design.qmd
 
 format:
   html:
     theme: cosmo
     toc: true
+
+crossref:
+  fig-title: "Рисунок"
+  tbl-title: "Таблица"
+  eq-title: "Формула"
+  fig-prefix: "Рисунок"
+  tbl-prefix: "Таблица"
+  eq-prefix: "Формула"
+  title-delim: " —"

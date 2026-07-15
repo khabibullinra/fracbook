@@ -60,4 +60,5 @@ select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["B", "N"]
+"tests/*" = ["B", "N", "RUF002"]
+"src/fracbook/ipr.py" = ["RUF002"]
