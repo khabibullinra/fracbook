@@ -36,13 +36,13 @@
 | `models/` | Модели гидродинамических симуляторов (`models/<simulator>/<NN-slug>/`). Новую модель заводить копированием `models/<simulator>/_template/`. |
 | `docs/` | Документация репо: роли (`CONTRIBUTING.md`), архитектурные решения (`decisions/`). |
 | `tools/` | Скрипты поддержки (`publish-pages.sh`, `check-large-files.sh`). |
-| `.gitverse/workflows/` | CI (smoke-test: `pytest` + `quarto check`). |
+| `.gitverse/workflows/` | CI (smoke-test: `pytest` + `quarto render`). |
 
 ## Конвенции для агентов
 
 Что делать:
 - Перед коммитом в `master`, если менялся `src/fracbook/` или `book/`,
-  прогнать `pytest -q` и `quarto check book/` (и `notebooks/` если менялся).
+  прогнать `pytest -q` и `quarto render book/` (и `notebooks/` если менялся).
 - Новый код — в `src/fracbook/`, новые эксперименты — в `notebooks/drafts/`.
   Ноутбук не должен содержать новой математики, только вызовы `fracbook`.
 - Стиль кода и оформление книги — в `book/CONTRIBUTING.md` и ruff-конфиге
@@ -70,5 +70,5 @@
 ## Рабочий процесс CI
 
 `.gitverse/workflows/ci.yaml` запускает smoke-test на каждый push и PR
-в `master`: `pytest` + `quarto check`. Деплоя в Pages из CI нет — это
+в `master`: `pytest` + `quarto render` (валидация `.qmd`). Деплоя в Pages из CI нет — это
 сознательное упрощение (Pages публикуется из ветки `pages`, см. выше).

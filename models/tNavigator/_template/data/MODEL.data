@@ -1,0 +1,45 @@
+-- Заготовка модели tNavigator.
+-- TODO: заполните секции под свою задачу.
+--
+-- Минимальная структура .data-файла приведена ниже как скелет.
+-- Подробности по секциям — в документации tNavigator
+-- (Rock Flow Dynamics / Schlumberger).
+
+RUNSPEC
+TITLE
+  TODO_MODEL
+/
+
+DIMENS
+  1 1 1 /
+/
+
+-- TODO: фазы (OIL/WATER/GAS), единицы (METRIC/FIELD), таблицы (TABDIMS),
+-- уравнения состояния (EOS), сетка (EQLDIMS, REGDIMS), и т.д.
+
+GRID
+-- TODO: INIT, NOECHO, COORD, ZCORN, ACTNUM
+/
+
+PROPS
+-- TODO: PVT, скалярные ROCK, таблицы насыщения (SWOF, SGOF, ...),
+-- относительные проницаемости
+/
+
+REGIONS
+-- TODO: SATNUM, PVTNUM, EQUIL, ROCKNUM
+/
+
+SOLUTION
+-- TODO: EQUIL, RSVD, PRESSURE, RSINIT
+/
+
+SUMMARY
+-- TODO: переменные для вывода (WOPR, FOPR, WBHP, FPR и т.д.)
+/
+
+SCHEDULE
+-- TODO: WELSPEC, COMPDAT, WCONPROD / WCONINJE, TSTEP
+/
+
+END

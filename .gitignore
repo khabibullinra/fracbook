@@ -32,6 +32,7 @@ _site/
 
 .ipynb_checkpoints/
 *.ipynb.bak
+notebooks/scratch/
 
 .quarto/
 

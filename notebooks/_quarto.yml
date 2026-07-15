@@ -1,0 +1,9 @@
+project:
+  type: default
+  output-dir: _site
+
+jupyter: python3
+
+execute:
+  freeze: auto
+  execute_notebooks: auto

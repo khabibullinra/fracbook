@@ -84,7 +84,7 @@
 ```bash
 pytest -q              # все тесты зелёные
 ruff check src tests   # линтер чистый
-quarto check book/     # .qmd без синтаксических ошибок
+quarto render book/    # .qmd без синтаксических ошибок
 ```
 
 Команды работают одинаково на Linux, macOS и Windows.
@@ -102,7 +102,7 @@ quarto check book/     # .qmd без синтаксических ошибок
 
 - [ ] `pytest -q` — зелёный
 - [ ] `ruff check src tests` — без замечаний
-- [ ] `quarto check book/` — без замечаний
+- [ ] `quarto render book/` — без замечаний
 - [ ] `quarto render book/` локально собирает html без warnings
 - [ ] Новые термины добавлены в словарь
 - [ ] Все ссылки на уравнения и рисунки работают (нет «missing crossref» в логе сборки)
