@@ -20,7 +20,7 @@
 - **Python ≥ 3.12** в `.venv` — расчётная среда. Пакет `fracbook` живёт в `src/fracbook/`,
   ставится в editable-режиме (`pip install -e .[dev]`).
 - **Локальный рендер** преподавателем + force-push в ветку `pages` (стратегия B).
-- **CI** не развёртывает, только smoke-test (`pytest`, `ruff`, `quarto render` для проверки `.qmd`).
+- **CI** не развёртывает, только smoke-test (`pytest` + `ruff`). Проверка `.qmd` — локально перед PR (через `quarto render book/`) и при ручной публикации (`tools/publish-pages.sh`).
 
 ## Последствия
 

@@ -36,7 +36,7 @@
 | `models/` | Модели гидродинамических симуляторов (`models/<simulator>/<NN-slug>/`). Новую модель заводить копированием `models/<simulator>/_template/`. |
 | `docs/` | Документация репо: роли (`CONTRIBUTING.md`), архитектурные решения (`decisions/`). |
 | `tools/` | Скрипты поддержки (`publish-pages.sh`, `check-large-files.sh`). |
-| `.gitverse/workflows/` | CI (smoke-test: `pytest` + `quarto render`). |
+| `.gitverse/workflows/` | CI (smoke-test: `pytest` + `ruff`). |
 
 ## Конвенции для агентов
 
@@ -70,5 +70,5 @@
 ## Рабочий процесс CI
 
 `.gitverse/workflows/ci.yaml` запускает smoke-test на каждый push и PR
-в `master`: `pytest` + `quarto render` (валидация `.qmd`). Деплоя в Pages из CI нет — это
+в `master`: `pytest` + `ruff check`. Деплоя в Pages из CI нет — это
 сознательное упрощение (Pages публикуется из ветки `pages`, см. выше).
