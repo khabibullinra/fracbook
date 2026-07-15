@@ -1,0 +1,15 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Методичка по гидравлическому разрыву пласта"
+  author: "khabibullinra"
+  language: ru
+  chapters:
+    - index.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
