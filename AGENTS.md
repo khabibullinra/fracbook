@@ -35,14 +35,15 @@
 | `notebooks/` | Quarto-проект с экспериментальными ноутбуками (`drafts/`, `reviewed/`, `scratch/`). |
 | `models/` | Модели гидродинамических симуляторов (`models/<simulator>/<NN-slug>/`). Новую модель заводить копированием `models/<simulator>/_template/`. |
 | `docs/` | Документация репо: роли (`CONTRIBUTING.md`), архитектурные решения (`decisions/`). |
-| `tools/` | Скрипты поддержки (`publish-pages.sh`, `check-large-files.sh`). |
+| `tools/` | Скрипты поддержки (`publish-pages.sh`). |
 | `.gitverse/workflows/` | CI (smoke-test: `pytest` + `ruff`). |
 
 ## Конвенции для агентов
 
 Что делать:
-- Перед коммитом в `master`, если менялся `src/fracbook/` или `book/`,
-  прогнать `pytest -q` и `quarto render book/` (и `notebooks/` если менялся).
+- Перед коммитом в `master`, если менялся `src/fracbook/` или `book/`
+  (или `notebooks/` для ноутбуков), прогнать `pytest -q`, `ruff check src tests`
+  и `quarto render book/` (или `notebooks/` если менялся).
 - Новый код — в `src/fracbook/`, новые эксперименты — в `notebooks/drafts/`.
   Ноутбук не должен содержать новой математики, только вызовы `fracbook`.
 - Стиль кода и оформление книги — в `book/CONTRIBUTING.md` и ruff-конфиге
