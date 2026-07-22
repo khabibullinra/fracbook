@@ -17,6 +17,17 @@ book:
     - lecture-07-monitoring.qmd
     - lecture-08-design.qmd
 
+  appendices:  
+    - tutorial-01-frac-single-well.qmd
+    - tutorial-02-frac-single-well-various.qmd
+    - tutorial-03-frac-compare-analitical-numerical.qmd
+    - tutorial-04-frac-sensitivity-analysis.qmd
+    - tutorial-05-frac-optimisation.qmd
+    - tutorial-06-frac-geology-influence.qmd
+    - tutorial-07-sector-model-fracs.qmd
+    - tutorial-08-sector-model-frac-tuning.qmd
+    - tutorial-09-frac-design.qmd
+
 format:
   html:
     theme: cosmo
