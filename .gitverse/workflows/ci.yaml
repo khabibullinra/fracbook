@@ -20,6 +20,18 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      - name: Install Quarto
+        shell: bash
+        run: |
+          set -euo pipefail
+          QV=$(cat .quarto-version)
+          wget -qO /tmp/quarto.tar.gz \
+            "https://github.com/quarto-dev/quarto-cli/releases/download/v${QV}/quarto-${QV}-linux-amd64.tar.gz"
+          sudo mkdir -p /opt/quarto
+          sudo tar -xzf /tmp/quarto.tar.gz -C /opt/quarto --strip-components=1
+          sudo ln -sf /opt/quarto/bin/quarto /usr/local/bin/quarto
+          quarto --version
+
       - name: Install package and dev deps
         run: pip install -e .[dev]
 
@@ -29,9 +41,21 @@ jobs:
           pip --version
           ruff --version
           pytest --version
+          quarto --version
 
       - name: Lint
         run: ruff check src tests
 
       - name: Tests
         run: pytest -q
+
+      - name: Render book (smoke-test .qmd)
+        run: quarto render book/
+
+      - name: Upload built book
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: book-html
+          path: book/_book
+          retention-days: 7
