@@ -19,13 +19,21 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.0",
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
     "ruff>=0.6",
+    # Quarto для рендера Python-чанков (smoke-test в CI) требует Jupyter-стек
+    # + matplotlib (для графиков в .qmd). notebook>=7 тянет nbformat/nbclient
+    # транзитивно. Эти пакеты нужны только для CI smoke-теста, не для
+    # runtime пакета fracbook.
+    "notebook>=7.0",
+    "matplotlib>=3.9",
 ]
 
 notebooks = [
