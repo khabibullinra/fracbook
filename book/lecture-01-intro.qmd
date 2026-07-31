@@ -20,7 +20,7 @@ title: "Лекция 1. Введение в дисциплину"
 Для ответа на этот вопрос широко используются математические модели и компьютерные алгоритмы.
 
 Курс посвящен расчетам производительности скважин с ГРП с использованием современных подходов - аналитический, полуаналитических и численных методов.
-Широко используются расчеты на python и тНавигатор. Курс предусматривает выполнение лабораторных работ и домашних заданий по расчетам производительности скважин с ГРП
+Широко используются расчеты на python и тНавигатор. Курс предусматривает выполнение лабораторных работ и домашних заданий по расчетам производительности скважин с ГРП. 
 
 
 ## Схема скважины с трещиной ГРП
@@ -38,14 +38,13 @@ WebGL-контекст сохраняется между тиками — поэ
 ::: {.callout-note}
 Реальная ширина (апертура) трещины $w_f$ после ГРП составляет единицы миллиметров,
 тогда как полудлина $x_f$ — десятки и сотни метров. Соотношение масштабов — 3–4 порядка.
-Чтобы параллелепипед был виден на схеме, ширина визуально увеличена в 500 раз; в
-подписях это явно отмечено (`$w_f = X$ мм (×500)`). Это стандартный приём в учебных
-3D-схемах ГРП.
+Чтобы параллелепипед был виден на схеме, ширина визуально увеличена в 500 раз — это
+стандартный приём в учебных 3D-схемах ГРП.
 :::
 
 ```{ojs}
 //| label: fig-fracture-scheme-three
-//| fig-cap: "Скважина с трещиной ГРП в круговом пласте (Three.js). Бегунки мутируют геометрию в place — обновление плавное, без пересоздания сцены."
+//| fig-cap: "Скважина с трещиной ГРП в круговом пласте (Three.js). Бегунки мутируют геометрию в place — обновление плавное, без пересоздания сцены. Размеры на сцене даны в согласованных единицах: $x_f$ и $h_f$ — в метрах, $w_f$ — в миллиметрах."
 //| echo: false
 
 {
@@ -64,8 +63,8 @@ WebGL-контекст сохраняется между тиками — поэ
   // Использует MathJax.tex2chtml напрямую — этот API рендерит LaTeX
   // в CHTML-узел без привязки к MathJax «документу», в отличие от
   // typesetPromise, который молча игнорирует элементы, добавленные
-  // после startup. Поэтому динамические метки (слайдеры, размерные
-  // подписи в сцене) типографируются так же, как формулы в тексте.
+  // после startup. Применяется к подписям бегунков (панель управления);
+  // размерные подписи в 3D-сцене рисуются на canvas и MathJax не нужны.
   const typeset = (el) => {
     if (!el) return;
     const doRender = () => {
@@ -125,47 +124,103 @@ WebGL-контекст сохраняется между тиками — поэ
     'border:1px solid #ddd; background:#fafafa; overflow:hidden;';
   wrap.appendChild(canvasBox);
 
-  // Масштаб апертуры — объявляем ДО labelSpec, потому что tex() в
-  // замыкании обращается к widthScale, а const в TDZ до строки объявления.
+  // Легенда единиц в углу сцены. Дублирует единицы, которые теперь
+  // присутствуют и прямо в подписях на размерных линиях («… м» / «… мм»).
+  // Оставлена как шпаргалка для беглого взгляда, без вчитывания в подписи.
+  const legend = document.createElement('div');
+  legend.style.cssText =
+    'position:absolute; top:8px; left:8px; z-index:10; padding:4px 8px; ' +
+    'background:rgba(255,255,255,0.92); color:#1a1a1a; ' +
+    'border-radius:2px; font:600 12px sans-serif; line-height:1.5; ' +
+    'box-shadow:0 1px 2px rgba(0,0,0,0.15); pointer-events:none;';
+  legend.innerHTML = 'Единицы: $x_f$, $h_f$ — м &nbsp;·&nbsp; $w_f$ — мм';
+  canvasBox.appendChild(legend);
+  typeset(legend);
+
+  // Масштаб апертуры — объявляем ДО dimensions, потому что w_f использует
+  // widthScale в fn(), а const в TDZ до строки объявления.
   const widthScale = 500;
 
-  // Размерные подписи: HTML-оверлеи, накладываются поверх canvas.
-  // Позиция вычисляется в render-цикле через vector.project(camera)
-  // — лейбл «прилипает» к своей точке в 3D при вращении камеры.
-  // Текст — LaTeX, рендерится MathJax (как формулы в основном тексте).
-  const labelSpec = [
+  // Размерные линии в стиле инженерного чертежа: каждая — пара ArrowHelper,
+  // направленные навстречу. Смещение от трещины масштабируется вместе с
+  // геометрией, чтобы линии не наезжали на подписи при крайних значениях
+  // бегунков. Данные (функции `fn`) — это чистые функции от текущих
+  // значений слайдеров; THREE-объекты и HTML-подписи живут в `dimObjects`,
+  // создаются ниже — после инициализации сцены.
+  const arrowHeadLength = 6;
+  const arrowHeadWidth = 3;
+
+  const dimensions = [
     {
-      pos: () => new THREE.Vector3(+xfC.inp.value * 0.55, 0, 0),
-      tex: () => `$x_f = ${+xfC.inp.value}$ м`,
-      color: '#c0392b',
+      // Полудлина x_f: над трещиной (в +Z), от скважины (x=0) до правого
+      // края (x=xf). Подпись со значением — посередине размерной линии,
+      // без единиц измерения, чтобы не наезжали на соседние размеры.
+      // Дополнительная «шапка» (caption) — отдельная невращающаяся
+      // этикетка чуть выше линии: подписывает размер по-русски, чтобы
+      // зритель сразу понимал, что показано, до чтения формулы.
+      fn: () => {
+        const xf = +xfC.inp.value;
+        const hf = +hfC.inp.value;
+        const off = Math.max(8, hf * 0.15);
+        const capOff = 6;  // отступ «шапки» от размерной линии вверх
+        return {
+          start: new THREE.Vector3(0, 0, hf / 2 + off),
+          end:   new THREE.Vector3(xf, 0, hf / 2 + off),
+          label: `$x_f = ${xf}$ м`,
+          labelPos: new THREE.Vector3(xf / 2, 0, hf / 2 + off),
+          caption: 'Полудлина',
+          captionPos: new THREE.Vector3(xf / 2, 0, hf / 2 + off + capOff),
+          color: 0xc0392b,
+        };
+      },
     },
     {
-      pos: () => new THREE.Vector3(+xfC.inp.value + 12, 0, +hfC.inp.value / 2 + 5),
-      tex: () => `$h_f = ${+hfC.inp.value}$ м`,
-      color: '#2980b9',
+      // Высота h_f: справа от трещины (в +X), где больше свободного места.
+      // Подпись — посередине, без единиц.
+      // Размерная линия вертикальная (вдоль Z), поэтому текст подписи
+      // оставляем горизонтальным — см. порог вертикальности в
+      // CSS2DRenderer.render. «Шапка» Высота — левее линии, чтобы не
+      // наезжать на подпись и трещину.
+      fn: () => {
+        const xf = +xfC.inp.value;
+        const hf = +hfC.inp.value;
+        const off = Math.max(12, xf * 0.15);
+        const capOff = 8;  // отступ «шапки» от линии в −X
+        return {
+          start: new THREE.Vector3(xf + off, 0, -hf / 2),
+          end:   new THREE.Vector3(xf + off, 0,  hf / 2),
+          label: `$h_f = ${hf}$ м`,
+          labelPos: new THREE.Vector3(xf + off, 0, 0),
+          caption: 'Высота',
+          captionPos: new THREE.Vector3(xf + off - capOff, 0, 0),
+          color: 0x2980b9,
+        };
+      },
     },
     {
-      pos: () => new THREE.Vector3(
-        +xfC.inp.value + 12,
-        (+wfC.inp.value / 1000) * widthScale / 2 + 0.1,
-        -(+hfC.inp.value / 2) - 5
-      ),
-      tex: () => `$w_f = ${(+wfC.inp.value).toFixed(1)}$ мм (×${widthScale})`,
-      color: '#27ae60',
+      // Ширина w_f: под трещиной (в -Z), вдоль оси Y. Подпись — у края
+      // (не посередине), как принято в инженерных чертежах для размера,
+      // который короче доступного места.
+      fn: () => {
+        const xf = +xfC.inp.value;
+        const hf = +hfC.inp.value;
+        const wf = +wfC.inp.value;
+        const wfDisp = (wf / 1000) * widthScale;
+        const offZ = Math.max(8, hf * 0.15);
+        const offY = Math.max(3, wfDisp * 0.4);
+        const capOff = 6;  // отступ «шапки» от линии вниз (в −Z)
+        return {
+          start: new THREE.Vector3(xf, -wfDisp / 2 - offY, -hf / 2 - offZ),
+          end:   new THREE.Vector3(xf,  wfDisp / 2 + offY, -hf / 2 - offZ),
+          label: `$w_f = ${wf.toFixed(1)}$ мм`,
+          labelPos: new THREE.Vector3(xf,  wfDisp / 2 + offY, -hf / 2 - offZ),
+          caption: 'Ширина',
+          captionPos: new THREE.Vector3(xf, 0, -hf / 2 - offZ - capOff),
+          color: 0x27ae60,
+        };
+      },
     },
   ];
-  const labels = labelSpec.map(s => {
-    const el = document.createElement('div');
-    el.style.cssText =
-      'position:absolute; pointer-events:none; transform:translate(-50%,-50%);' +
-      'font-size:14px; font-weight:600; white-space:nowrap;' +
-      'padding:2px 6px; background:rgba(255,255,255,0.85); border-radius:3px;';
-    el.style.color = s.color;
-    el.textContent = s.tex();
-    canvasBox.appendChild(el);
-    typeset(el);
-    return {...s, el};
-  });
 
   if (typeof THREE === 'undefined') {
     canvasBox.textContent = 'Three.js не загрузился — проверьте CDN в _include/header.html.';
@@ -185,6 +240,204 @@ WebGL-контекст сохраняется между тиками — поэ
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(W, H);
   canvasBox.appendChild(renderer.domElement);
+
+  // Подписи — HTML-этикетки, привязанные к 3D-точкам через мини-CSS2D-рендерер.
+  // DOM остаётся читаемым при любом размере/масштабе, текст не
+  // пикселизируется и не растягивается; не нужно перерисовывать canvas
+  // при вращении камеры. CSS2DRenderer не подключён через CDN (three/examples/jsm
+  // — только ESM), поэтому встроен минимальный аналог ниже: считает
+  // проекцию vector3 → screen × DPR и позиционирует div'ы через transform.
+  //
+  // CSS2DObject — это Object3D с .element (DOM-узел). При render()
+  // рендерер обходит дерево, проецирует Vector3 и пишет style.transform.
+  // Если в userData заданы start/end (мировые точки концов размерной
+  // линии), этикетка дополнительно поворачивается в плоскости экрана
+  // так, чтобы текст шёл вдоль линии — это «инженерный» стиль.
+  class CSS2DObject {
+    constructor(element) {
+      this.element = element;
+      this.position = new THREE.Vector3();
+      this.updateMatrixWorld = () => {};
+    }
+  }
+  class CSS2DRenderer {
+    constructor() {
+      this.domElement = document.createElement('div');
+      this.domElement.style.cssText =
+        'position:absolute; top:0; left:0; width:100%; height:100%; ' +
+        'pointer-events:none; overflow:hidden;';
+    }
+    setSize(w, h) {
+      this._w = w; this._h = h;
+      this._halfW = w / 2; this._halfH = h / 2;
+    }
+    render(scene, camera) {
+      // Сначала убираем все дочерние div'ы, потом добавляем заново —
+      // структура сцены меняется редко, проще пересоздать, чем
+      // дифференцировать. Стоимость: O(N) DOM-append на кадр, для
+      // трёх этикеток это незаметно.
+      const root = this.domElement;
+      while (root.firstChild) root.removeChild(root.firstChild);
+      const dpr = window.devicePixelRatio || 1;
+      scene.traverse(obj => {
+        if (!(obj instanceof CSS2DObject)) return;
+        // Переводим мировую точку в координаты камеры, потом в NDC.
+        const v = obj.position.clone().project(camera);
+        if (v.z > 1) return;  // за дальней плоскостью — не рисуем
+        const x = (v.x * 0.5 + 0.5) * this._w;
+        const y = (-v.y * 0.5 + 0.5) * this._h;
+        let transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+        // Если для этикетки заданы концы размерной линии в мировых
+        // координатах, считаем угол между проекциями start и end
+        // и применяем rotate(). Так текст идёт вдоль линии, и при
+        // вращении камеры подписи поворачиваются вместе со сценой.
+        if (obj.userData && obj.userData.start && obj.userData.end) {
+          const ws = obj.userData.start.clone().project(camera);
+          const we = obj.userData.end.clone().project(camera);
+          if (ws.z <= 1 && we.z <= 1) {
+            const sx = (ws.x * 0.5 + 0.5) * this._w;
+            const sy = (-ws.y * 0.5 + 0.5) * this._h;
+            const ex = (we.x * 0.5 + 0.5) * this._w;
+            const ey = (-we.y * 0.5 + 0.5) * this._h;
+            const dx = ex - sx, dy = ey - sy;
+            // Если проекция выродилась (вид почти вдоль оси линии —
+            // например, взгляд сверху на вертикальную h_f), угол
+            // скачет от кадра к кадру. В этом случае оставляем
+            // текст горизонтальным — иначе он будет дёргаться.
+            if (dx * dx + dy * dy > 4) {
+              // atan2 по соглашению Three.js даёт 0 — вдоль +X экрана;
+              // CSS rotate() ожидает градусы, 0 — вдоль +X вниз (потому
+              // что Y в CSS растёт вниз). Это согласуется с нашим
+              // yy = -v.y * 0.5 + 0.5, так что никаких доп. знаков.
+              let theta = Math.atan2(dy, dx);
+              // Не даём тексту «лечь на бок» вверх ногами: если строка
+              // была бы перевёрнута (от -90° до +90° текст читается
+              // слева направо), оставляем как есть; иначе добавляем 180°
+              // и переворачиваем.
+              if (theta > Math.PI / 2 || theta < -Math.PI / 2) {
+                theta += Math.PI;
+              }
+              // Если линия на экране почти вертикальна (угол близок к
+              // ±90°), не вращаем подпись — иначе текст ложится на бок
+              // и читается с наклоном головы. Порог 20° от вертикали:
+              // линии x_f/w_f (горизонтальные) вращаются как обычно,
+              // h_f (вертикальная) остаётся горизонтальной плашкой.
+              if (Math.abs(theta) > Math.PI / 2 - 0.35) {
+                // горизонтально — rotate не добавляем
+              } else {
+                const deg = theta * 180 / Math.PI;
+                transform = `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${deg.toFixed(2)}deg)`;
+              }
+            }
+          }
+        }
+        obj.element.style.transform = transform;
+        root.appendChild(obj.element);
+      });
+    }
+  }
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(canvasBox.clientWidth || 800, canvasBox.clientHeight || 600);
+  labelRenderer.domElement.style.top = '0';
+  canvasBox.appendChild(labelRenderer.domElement);
+
+  // Создаём THREE-объекты для размерных линий: две ArrowHelper на
+  // каждую (наконечники навстречу — дают «двустороннюю» стрелку
+  // с разрывом посередине, как в инженерных чертежах) + HTML-этикетка
+  // в точке init.labelPos (там же, где раньше были спрайты).
+  // Размер наконечника подгоняется по длине линии, чтобы короткие
+  // размеры (например, w_f) не выглядели как два слипшихся конуса.
+  const dimObjects = dimensions.map(d => {
+    const init = d.fn();
+    const dir = new THREE.Vector3().subVectors(init.end, init.start);
+    const len = dir.length();
+    dir.normalize();
+    const headLen = Math.min(arrowHeadLength, len * 0.3);
+    const headWid = Math.min(arrowHeadWidth, headLen * 0.6);
+    const a1 = new THREE.ArrowHelper(
+      dir, init.start, len, init.color, headLen, headWid
+    );
+    const a2 = new THREE.ArrowHelper(
+      dir.clone().negate(), init.end, len, init.color, headLen, headWid
+    );
+    scene.add(a1, a2);
+    // HTML-этикетка: маленькая белая плашка с чёрной подписью,
+    // якорь в 3D-точке init.labelPos. Атомарный CSS, чтобы не
+    // зависеть от темы Quarto. transform-origin ставим в центр,
+    // чтобы rotate() крутил текст вокруг середины плашки, а не
+    // вокруг её левого верхнего угла.
+    const labelEl = document.createElement('div');
+    labelEl.textContent = init.label;
+    labelEl.style.cssText =
+      'position:absolute; top:0; left:0; padding:1px 6px; ' +
+      'background:rgba(255,255,255,0.92); color:#1a1a1a; ' +
+      'border-radius:2px; font:600 13px sans-serif; ' +
+      'white-space:nowrap; pointer-events:none; ' +
+      'transform-origin:50% 50%; ' +
+      'box-shadow:0 1px 2px rgba(0,0,0,0.15);';
+    const labelObj = new CSS2DObject(labelEl);
+    labelObj.position.copy(init.labelPos);
+    // Концы размерной линии в мировых координатах — рендерер по ним
+    // посчитает угол и повернёт текст вдоль линии.
+    labelObj.userData = {
+      start: init.start.clone(),
+      end: init.end.clone(),
+    };
+    scene.add(labelObj);
+    // Необязательная «шапка» — отдельная невращающаяся этикетка выше
+    // размерной линии. Создаётся, если в init задан caption. userData
+    // пустой — рендерер не будет крутить текст вдоль линии, останется
+    // горизонтальным. Стиль чуть легче (без фона), чтобы не соревноваться
+    // с основной подписью за внимание.
+    let captionObj = null;
+    if (init.caption) {
+      const capEl = document.createElement('div');
+      capEl.textContent = init.caption;
+      capEl.style.cssText =
+        'position:absolute; top:0; left:0; ' +
+        'color:' + init.color + '; ' +
+        'font:500 12px sans-serif; white-space:nowrap; ' +
+        'pointer-events:none; text-shadow:0 0 2px rgba(255,255,255,0.8);';
+      captionObj = new CSS2DObject(capEl);
+      captionObj.position.copy(init.captionPos);
+      scene.add(captionObj);
+    }
+    return {fn: d.fn, a1, a2, labelObj, labelEl, captionObj};
+  });
+
+  function updateDimensions() {
+    dimObjects.forEach(d => {
+      const init = d.fn();
+      const dir = new THREE.Vector3().subVectors(init.end, init.start);
+      const len = dir.length();
+      if (len < 1e-6) return;
+      dir.normalize();
+      const headLen = Math.min(arrowHeadLength, len * 0.3);
+      const headWid = Math.min(arrowHeadWidth, headLen * 0.6);
+      d.a1.position.copy(init.start);
+      d.a1.setDirection(dir);
+      d.a1.setLength(len, headLen, headWid);
+      d.a2.position.copy(init.end);
+      d.a2.setDirection(dir.clone().negate());
+      d.a2.setLength(len, headLen, headWid);
+      // HTML-этикетка тоже привязана к 3D-точке — обновляем позицию,
+      // иначе при изменении xf/hf/wf подпись «отстанет» от своего
+      // места на размерной линии. Концы линии (userData.start/end)
+      // тоже обновляем — иначе угол поворота текста будет
+      // соответствовать предыдущему положению размерной линии.
+      d.labelObj.position.copy(init.labelPos);
+      d.labelObj.userData.start.copy(init.start);
+      d.labelObj.userData.end.copy(init.end);
+      // «Шапка» (если есть) живёт в другой 3D-точке — без неё она
+      // отстанет от своей размерной линии при изменении бегунков.
+      if (d.captionObj && init.captionPos) {
+        d.captionObj.position.copy(init.captionPos);
+      }
+    });
+  }
+
+  // (поверхностный mesh удалён — подписи через CSS2DRenderer, см. выше)
+
 
   // Свет
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -225,9 +478,12 @@ WebGL-контекст сохраняется между тиками — поэ
   // Оси бокса: X = полудлина (горизонтально, перпендикулярно скважине),
   //            Y = апертура (горизонтально, параллельно скважине),
   //            Z = высота (вертикально, вдоль скважины).
-  // С масштабом (xf, wf_disp, hf) бокс оказывается вертикальной стенкой
-  // в плоскости XZ, пересекающей скважину.
-  const fracGeom = new THREE.BoxGeometry(1, 1, 1);
+  // BoxGeometry(2,1,1) после масштаба (xf, wf_disp, hf) даёт X-протяжённость
+  // от -xf до +xf — полудлина от скважины до края действительно равна xf,
+  // и стрелка размерной линии x_f (от x=0 до x=xf) визуально совпадает
+  // с половиной бокса. Если оставить (1,1,1), ширина по X была бы 2*xf,
+  // и стрелка «отставала» бы от края трещины.
+  const fracGeom = new THREE.BoxGeometry(2, 1, 1);
   const frac = new THREE.Mesh(fracGeom, new THREE.MeshPhongMaterial({
     color: 0xff6b35, transparent: true, opacity: 0.9, shininess: 30,
   }));
@@ -274,7 +530,9 @@ WebGL-контекст сохраняется между тиками — поэ
   renderer.domElement.addEventListener('wheel', onWheel, {passive: false});
 
   // Обновление геометрии трещины (in-place, без пересоздания объектов)
-  // + пересчёт текста размерных подписей с повторной типографикой MathJax.
+  // + пересчёт размерных линий и подписей. Геометрия трещины, стрелок
+  // и текстур подписей пересоздаются только на input-событиях бегунков;
+  // рендер-цикл ниже просто рисует текущее состояние сцены.
   const update = () => {
     const xf = +xfC.inp.value;
     const hf = +hfC.inp.value;
@@ -285,30 +543,20 @@ WebGL-контекст сохраняется между тиками — поэ
     xfC.span.textContent = xf;
     hfC.span.textContent = hf;
     wfC.span.textContent = wf.toFixed(1);
-    labels.forEach(l => { l.el.textContent = l.tex(); typeset(l.el); });
+    updateDimensions();
   };
   xfC.inp.addEventListener('input', update);
   hfC.inp.addEventListener('input', update);
   wfC.inp.addEventListener('input', update);
   update();
 
-  // Рендер-цикл. На каждом кадре: рендер + пересчёт экранных координат
-  // размерных подписей. Сама геометрия меняется только в обработчике `input`,
-  // камера — только при drag/wheel, так что сцена не пересоздаётся и не
-  // моргает.
+  // Рендер-цикл. WebGL рисует 3D-сцену, CSS2DRenderer поверх неё
+  // проецирует HTML-этикетки на экран. Геометрия меняется только в
+  // обработчике `input`, камера — только при drag/wheel, так что
+  // сцена не пересоздаётся и не моргает.
   const animate = () => {
     renderer.render(scene, camera);
-    const cw = canvasBox.clientWidth;
-    const ch = canvasBox.clientHeight;
-    const v = new THREE.Vector3();
-    labels.forEach(l => {
-      v.copy(l.pos()).project(camera);
-      // project() возвращает NDC в [-1, 1]; на экране — линейное отображение.
-      l.el.style.left = (v.x * 0.5 + 0.5) * cw + 'px';
-      l.el.style.top  = (-v.y * 0.5 + 0.5) * ch + 'px';
-      // Прячем подпись, если точка за камерой (project даёт инвертированный z).
-      l.el.style.display = (v.z < 1) ? '' : 'none';
-    });
+    labelRenderer.render(scene, camera);
     requestAnimationFrame(animate);
   };
   animate();
@@ -327,6 +575,11 @@ WebGL-контекст сохраняется между тиками — поэ
         else o.material.dispose();
       }
     });
+    // CSS2DRenderer породил обычные DOM-узлы — убираем их со страницы,
+    // иначе при перерендере ячейки накопится мусор.
+    if (labelRenderer.domElement.parentNode) {
+      labelRenderer.domElement.parentNode.removeChild(labelRenderer.domElement);
+    }
   });
 
   return wrap;
@@ -355,6 +608,335 @@ WebGL-контекст сохраняется между тиками — поэ
 ::: {.callout-warning}
 Тут надо привети формулы для расчета дебита для стационарного режима для скважины с ГРП
 :::
+
+Для стационарного радиального притока несжимаемой жидкости к вертикальной скважине
+дебит определяется уравнением Дарси (закон Дюпюи с поправкой на скин):
+
+$$ q = \frac{2\pi k h\,(p_e - p_{wf})}{\mu\left(\ln\frac{r_e}{r_w} + s\right)} $$
+
+где $k$ — проницаемость пласта, $h$ — толщина, $\mu$ — вязкость, $p_e$ — давление на
+контуре питания радиуса $r_e$, $p_{wf}$ — забойное давление, $r_w$ — радиус скважины,
+$s$ — скин-фактор. Без скина ($s=0$) профиль давления в пласте логарифмический:
+
+$$ p(r) = p_e - \frac{q\mu}{2\pi k h}\ln\frac{r_e}{r}, \quad r_w \le r \le r_e $$
+
+Скин-фактор моделирует зону изменённой проницаемости $k_s$ радиусом $r_s$ вблизи
+скважины (модель Хокинса):
+
+$$ s = \left(\frac{k}{k_s} - 1\right)\ln\frac{r_s}{r_w} $$
+
+При положительном $s$ ($k_s < k$) — загрязнение призабойной зоны, перепад давления
+возле скважины растёт, дебит падает. При отрицательном $s$ ($k_s > k$) — улучшение
+проницаемости призабойной зоны, в том числе за счёт ГРП: перепад давления возле
+скважины уменьшается, забойное давление растёт, дебит увеличивается. Чем «глубже»
+стимуляция (больше $|s|$), тем сильнее профиль давления «поднимается» в призабойной
+зоне по сравнению с идеальным (без скина) профилем.
+
+На @fig-pressure-skin показано распределение давления вокруг вертикальной скважины.
+Бегунок меняет скин-фактор $s$; сплошная синяя линия — реальный профиль давления
+(с зоной скина радиусом $r_s$), пунктирная серая — идеальный профиль без скина
+($s=0$). Вертикальная пунктирная линия отмечает границу зоны скина $r_s$. Вот.
+
+```{ojs}
+//| label: fig-pressure-skin
+//| fig-cap: "Распределение давления вокруг вертикальной скважины при разных значениях скин-фактора. Бегунок $s$ пересчитывает проницаемость призабойной зоны $k_s$ (модель Хокинса) и перестраивает профиль $p(r)$ в полулогарифмических координатах. ГРП соответствует отрицательному $s$."
+//| echo: false
+
+{
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'width:100%; margin:1em 0; font-family:sans-serif;';
+
+  // MathJax-помощник: рендерит LaTeX в подписи бегунка (как в блоке Three.js выше).
+  const typeset = (el) => {
+    if (!el) return;
+    const doRender = () => {
+      if (!window.MathJax || !window.MathJax.tex2chtml) return false;
+      const text = el.textContent;
+      if (!text) return true;
+      el.innerHTML = text.replace(/\$([^$]+)\$/g, (m, latex) => {
+        try { return window.MathJax.tex2chtml(latex, {display:false}).outerHTML; }
+        catch(e) { return m; }
+      });
+      return true;
+    };
+    if (doRender()) return;
+    if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+      window.MathJax.startup.promise.then(doRender);
+    } else { setTimeout(() => typeset(el), 100); }
+  };
+
+  const ctrls = document.createElement('div');
+  ctrls.style.cssText =
+    'display:flex; flex-wrap:wrap; gap:1.2em; align-items:center; ' +
+    'margin-bottom:0.5em; font-size:0.95em;';
+
+  const makeSlider = (labelTex, min, max, value, step) => {
+    const el = document.createElement('label');
+    el.style.cssText = 'display:flex; gap:0.4em; align-items:center;';
+    const labelEl = document.createElement('span');
+    labelEl.textContent = labelTex;
+    el.appendChild(labelEl);
+    const inp = document.createElement('input');
+    inp.type='range'; inp.min=min; inp.max=max; inp.value=value; inp.step=step;
+    inp.style.cssText='vertical-align:middle;';
+    el.appendChild(inp);
+    const span = document.createElement('span');
+    span.textContent = value;
+    span.style.cssText='min-width:3em; display:inline-block; text-align:right;';
+    el.appendChild(span);
+    typeset(labelEl);
+    return {el, inp, span};
+  };
+
+  // Бегунок скин-фактора: от −5 (ГРП, стимуляция) до +10 (загрязнение).
+  const sCtrl = makeSlider('Скин-фактор $s$', -5, 10, 0, 0.1);
+  ctrls.appendChild(sCtrl.el);
+  wrap.appendChild(ctrls);
+
+  const plotDiv = document.createElement('div');
+  plotDiv.style.cssText = 'width:100%; height:430px;';
+  wrap.appendChild(plotDiv);
+
+  if (typeof Plotly === 'undefined') {
+    plotDiv.textContent = 'Plotly.js не загрузился — проверьте CDN в _include/header.html.';
+    return wrap;
+  }
+
+  // --- Параметры пласта и скважины (согласованные единицы) ---
+  const rw = 0.1;   // м, радиус скважины
+  const re = 500;   // м, радиус контура питания
+  const rs = 25;    // м, радиус зоны скина (изменённой проницаемости)
+  const k  = 50;    // мД, проницаемость пласта
+  const h  = 10;    // м, толщина пласта
+  const mu = 2;     // сП, вязкость
+  const q  = 30;    // м³/сут, дебит
+  const pe = 250;   // атм, давление на контуре
+
+  // A = qμ/(2πkh) — перепад давления на единицу ln(r_e/r), в атм.
+  const qSI  = q / 86400;                 // м³/с
+  const muSI = mu * 1e-3;                  // Па·с
+  const kSI  = k * 9.869e-16;              // м²
+  const A_Pa = qSI * muSI / (2 * Math.PI * kSI * h);
+  const A    = A_Pa / 101325;              // атм / ln-единица
+
+  // Логарифмически равномерные точки в диапазоне [a, b].
+  const logspace = (a, b, n) => {
+    const la = Math.log(a), lb = Math.log(b);
+    return Array.from({length: n}, (_, i) => Math.exp(la + (lb - la) * i / (n - 1)));
+  };
+
+  // Пересчёт профиля давления по модели Хокинса.
+  // ksRatio = k/k_s = 1 + s/ln(r_s/r_w); при сильной стимуляции ограничиваем снизу,
+  // чтобы k_s не уходило в бесконечность/отрицательные значения.
+  function compute(s) {
+    const sLn = Math.log(rs / rw);
+    let ksRatio = 1 + s / sLn;
+    if (ksRatio < 0.05) ksRatio = 0.05;
+    const rSkin = logspace(rw, rs, 120);
+    const rFar  = logspace(rs, re, 120);
+    const rAll  = rSkin.concat(rFar);
+    const pAll  = rAll.map(r => {
+      if (r <= rs) {
+        // В зоне скина: наклон ~ A * (k/k_s)
+        return pe - A * Math.log(re / rs) - A * ksRatio * Math.log(rs / r);
+      }
+      return pe - A * Math.log(re / r);
+    });
+    // Идеальный профиль без скина — для сравнения.
+    const rIdeal = logspace(rw, re, 50);
+    const pIdeal = rIdeal.map(r => pe - A * Math.log(re / r));
+    const pwf = pe - A * (Math.log(re / rw) + s);
+    return {rAll, pAll, rIdeal, pIdeal, pwf, ksRatio, ks: k / ksRatio};
+  }
+
+  function draw(s) {
+    const c = compute(s);
+    const data = [
+      {
+        x: c.rAll, y: c.pAll,
+        mode: 'lines', type: 'scatter',
+        name: 'Профиль давления (со скином)',
+        line: {color: '#1f77b4', width: 3},
+      },
+      {
+        x: c.rIdeal, y: c.pIdeal,
+        mode: 'lines', type: 'scatter',
+        name: 'Идеальный профиль (s = 0)',
+        line: {color: '#999', width: 2, dash: 'dash'},
+      },
+      {
+        x: [rw], y: [c.pwf],
+        mode: 'markers+text', type: 'scatter',
+        marker: {size: 10, color: '#1f77b4'},
+        text: [`p_wf = ${c.pwf.toFixed(1)} атм`],
+        textposition: 'bottom right',
+        textfont: {size: 11},
+        name: 'Забойное давление',
+        showlegend: false,
+      },
+    ];
+    const layout = {
+      margin: {l: 65, r: 30, t: 20, b: 70},
+      xaxis: {
+        type: 'log',
+        title: {text: 'Радиус r, м', font: {size: 13}},
+        gridcolor: '#eee',
+        zeroline: false,
+      },
+      yaxis: {
+        title: {text: 'Давление p, атм', font: {size: 13}},
+        gridcolor: '#eee',
+      },
+      legend: {orientation: 'h', y: -0.28, font: {size: 11}},
+      hovermode: 'closest',
+      shapes: [{
+        type: 'line',
+        xref: 'x', yref: 'paper',
+        x0: rs, x1: rs,
+        y0: 0, y1: 1,
+        line: {color: '#d62728', width: 1, dash: 'dot'},
+      }],
+      annotations: [{
+        x: rs, y: 1, yref: 'paper',
+        text: 'r_s — граница зоны скина',
+        showarrow: false,
+        font: {size: 10, color: '#d62728'},
+        xanchor: 'left', yanchor: 'top',
+      }],
+    };
+    Plotly.react(plotDiv, data, layout, {responsive: true});
+  }
+
+  sCtrl.inp.addEventListener('input', () => {
+    sCtrl.span.textContent = (+sCtrl.inp.value).toFixed(1);
+    draw(+sCtrl.inp.value);
+  });
+  draw(+sCtrl.inp.value);
+
+  invalidation.then(() => { Plotly.purge(plotDiv); });
+
+  return wrap;
+}
+```
+
+::: {.callout-note}
+Передвиньте бегунок влево (отрицательный $s$) — это эффект ГРП: проницаемость
+призабойной зоны $k_s$ растёт, перепад давления возле скважины уменьшается, и
+забойное давление $p_{wf}$ приближается к пластовому $p_e$. Передвиньте вправо
+(положительный $s$) — модель загрязнения: $k_s < k$, перепад в зоне скина
+становится круче, $p_{wf}$ падает, дебит снижается. Пунктирная серая линия —
+идеальный профиль ($s = 0$), относительно которого видно «провисание» или
+«подъём» давления в призабойной зоне.
+:::
+
+Тот же расчёт ниже реализован на **реактивном OJS-рантайме** с библиотекой
+Observable Plot. Вместо ручных обработчиков `input`-событий используется
+декларативная реактивность: слайдер `viewof s` автоматически пересчитывает все
+зависимые ячейки (`profile`, `skinData`, график) без явного вызова
+перерисовки — это идиоматичный стиль Observable JS.
+
+```{ojs}
+//| echo: false
+//| output: false
+
+// --- Параметры пласта и скважины (те же, что в Plotly-версии) ---
+// В OJS верхний уровень ячейки — реактивные объявления без const/let/var.
+// const/let допустимы только внутри тел функций (см. ниже).
+rw = 0.1   // м, радиус скважины
+re = 500   // м, радиус контура питания
+k  = 50    // мД, проницаемость пласта
+h  = 10    // м, толщина
+mu = 2     // сП, вязкость
+q  = 30    // м³/сут, дебит
+pe = 250   // атм, давление на контуре
+
+// A = qμ/(2πkh) — перепад на единицу ln(r_e/r), в атм.
+A = (q / 86400 * mu * 1e-3) /
+  (2 * Math.PI * k * 9.869e-16 * h) / 101325
+
+// Логарифмически равномерная сетка [a, b] из n точек.
+logspace = (a, b, n) =>
+  d3.range(n).map(i =>
+    Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * i / (n - 1))
+  )
+
+// Пересчёт профиля давления по модели Хокинса.
+// Внутри тела функции — обычный JS, const/let разрешены.
+computeProfile = (s) => {
+  const sLn = Math.log(rs / rw);
+  let ksRatio = 1 + s / sLn;
+  if (ksRatio < 0.05) ksRatio = 0.05;
+  const rSkin = logspace(rw, rs, 120);
+  const rFar  = logspace(rs, re, 120);
+  const rAll  = [...rSkin, ...rFar];
+  const pAll  = rAll.map(r =>
+    r <= rs
+      ? pe - A * Math.log(re / rs) - A * ksRatio * Math.log(rs / r)
+      : pe - A * Math.log(re / r)
+  );
+  const rIdeal = logspace(rw, re, 50);
+  const pIdeal = rIdeal.map(r => pe - A * Math.log(re / r));
+  const pwf = pe - A * (Math.log(re / rw) + s);
+  return {rAll, pAll, rIdeal, pIdeal, pwf, ksRatio, ks: k / ksRatio};
+}
+
+// Реактивные производные — пересчитываются автоматически при изменении s.
+profile  = computeProfile(s)
+skinData = profile.rAll.map((r, i) => ({r, p: profile.pAll[i]}))
+idealData = profile.rIdeal.map((r, i) => ({r, p: profile.pIdeal[i]}))
+```
+
+```{ojs}
+//| echo: false
+
+viewof s = Inputs.range([-5, 10], {value: 0, step: 0.1, label: "Скин-фактор s"});
+
+viewof rs = Inputs.range([1, 100], {value: 25, step: 1, label: "Радиус зоны скина r_s, м"});
+
+viewof logX = Inputs.toggle({label: "Логарифмическая ось X", value: true});
+
+html`При ${tex`\\,s = ${s.toFixed(1)}`}, ${tex`\\,r_s = ${rs.toFixed(0)}`} м: проницаемость призабойной зоны ${tex`\\,k_s = ${profile.ks.toFixed(1)}`} мД, забойное давление ${tex`\\,p_{wf} = ${profile.pwf.toFixed(1)}`} атм.`
+```
+
+```{ojs}
+//| label: fig-pressure-skin-ojs
+//| fig-cap: "Распределение давления вокруг вертикальной скважины (Observable Plot, реактивный OJS). Тот же расчёт по модели Хокинса — слайдер $s$ автоматически пересчитывает профиль $p(r)$ через реактивные зависимости, без ручных обработчиков событий."
+//| echo: false
+
+Plot.plot({
+  marginBottom: 55,
+  marginLeft: 65,
+  x: {type: logX ? "log" : "linear", label: "Радиус r, м", grid: true},
+  y: {label: "Давление p, атм", grid: true},
+  color: {
+    domain: ["Профиль давления (со скином)", "Идеальный профиль (s = 0)"],
+    range: ["#1f77b4", "#999"],
+    legend: true,
+  },
+  marks: [
+    Plot.line(skinData, {
+      x: "r", y: "p",
+      stroke: () => "Профиль давления (со скином)",
+      strokeWidth: 2.5,
+    }),
+    Plot.line(idealData, {
+      x: "r", y: "p",
+      stroke: () => "Идеальный профиль (s = 0)",
+      strokeWidth: 1.5,
+      strokeDasharray: "5 4",
+    }),
+    Plot.ruleX([rs], {stroke: "#d62728", strokeDasharray: "3 3"}),
+    Plot.dot([{r: rw, p: profile.pwf}], {
+      x: "r", y: "p", fill: "#1f77b4", r: 4,
+    }),
+    Plot.text([{r: rw, p: profile.pwf}], {
+      x: "r", y: "p",
+      text: d => `p_wf = ${d.p.toFixed(1)} атм`,
+      dx: 10, dy: 12, fontSize: 11, fill: "#1f77b4",
+    }),
+  ]
+})
+```
 
 ### Численная модель - модификация сетки
 
