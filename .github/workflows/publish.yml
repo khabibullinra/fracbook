@@ -77,13 +77,13 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    # `environment: github-pages` создан GitHub автоматически при
-    # включении Pages в UI. По умолчанию в нём разрешён только default
-    # branch (сейчас `main`), а мы деплоим из `master`. Пока default
-    # не переключён — branch-restriction реджектит push. Убрал
-    # `environment:` чтобы обойти restriction; deploy-pages всё равно
-    # деплоит в GitHub Pages. Чистое решение: переключить default branch
-    # на `master` в UI.
+    # environment github-pages создан автоматически при включении
+    # Pages в UI. Branch-restriction по умолчанию = default branch,
+    # теперь это `master` — так что deploy пройдёт штатно.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
