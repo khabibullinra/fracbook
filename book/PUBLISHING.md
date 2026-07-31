@@ -1,143 +1,140 @@
-# Публикание методички
+# Сборка книги Quarto
 
-Краткая инструкция для преподавателя — как собрать книгу и опубликовать её на GitVerse Pages.
+Узкая инструкция: как собрать `book/` локально и что делать, если что-то
+сломалось. Публикация на сайт — через CI (см. `PUBLISHING.md` в корне).
 
-## Требования
+## Содержание
 
-- **Quarto** строго той версии, что в `.quarto-version` (на момент написания — 1.9.38). На Linux преподавателя — ставится отдельно (см. ниже). На Windows у преподавателя — встроен в Positron.
-  - **Positron игнорирует `.quarto-version`** и использует свой встроенный Quarto. Поэтому на Windows-стороне версию всё равно надо сверять глазами.
-- **Python ≥ 3.12**, **только через `.venv` в корне проекта.** Никаких системных установок `fracbook`.
-- Доступ к GitVerse по SSH (ключ уже настроен на машине преподавателя).
+- [Локальный рендер](#локальный-рендер)
+- [Структура `book/`](#структура-book)
+- [Добавление главы](#добавление-главы)
+- [Troubleshooting](#troubleshooting)
 
-### Установка Quarto на Linux
-
-Один раз — версия подставляется из `.quarto-version`:
-
-```bash
-QV=$(cat .quarto-version)
-wget -qO /tmp/quarto.tar.gz \
-  "https://github.com/quarto-dev/quarto-cli/releases/download/v${QV}/quarto-${QV}-linux-amd64.tar.gz"
-mkdir -p ~/.local/share/quarto-${QV}
-tar -xzf /tmp/quarto.tar.gz -C ~/.local/share/quarto-${QV} --strip-components=1
-ln -sf ~/.local/share/quarto-${QV}/bin/quarto ~/.local/bin/quarto
-quarto --version  # должно совпасть с .quarto-version
-```
-
-`~/.local/bin` уже в `PATH` (добавляется `~/.profile` при логине).
-
-### Настройка `.venv` (все участники)
-
-Один раз после клона:
+## Локальный рендер
 
 ```bash
-python3 -m venv .venv
+# Из корня репо, с активированным .venv:
+quarto preview book/    # рендерит + открывает в браузере + авто-перезагрузка
+quarto render book/     # рендерит без браузера (для CI / smoke-теста)
 ```
 
-Активация:
+`quarto preview` следит за `.qmd`, `.py`, конфигами и перерисовывает
+страницу при изменении. В Positron — **Quarto: Preview** в палитре команд.
 
-| ОС / shell | Команда |
-|---|---|
-| Linux, macOS, Git Bash | `source .venv/bin/activate` |
-| Windows (cmd) | `.venv\Scripts\activate.bat` |
-| Windows (PowerShell) | `.venv\Scripts\Activate.ps1` |
+Артефакт — `book/_book/`. Папка в `.gitignore`, в `master` не коммитится.
 
-Установка пакета и dev-зависимостей:
+## Структура `book/`
 
-```bash
-pip install -e .[dev]
+```
+book/
+├── _quarto.yml              # конфигурация книги (тема, toc, include-in-header)
+├── _include/header.html     # inline-<script> для Plotly.js (CDN)
+├── index.qmd                # титульная страница
+├── lecture-NN-*.qmd         # лекции (8 штук, порядок в _quarto.yml)
+├── tutorial-NN-*.qmd        # лабораторные работы (9 штук, в appendices)
+├── images/                  # иллюстрации (SVG предпочтительно)
+├── references.bib           # BibTeX для цитирований
+└── PUBLISHING.md            # этот файл
 ```
 
-Проверка:
+Главы нумеруются `lecture-NN-` (лекции) и `tutorial-NN-` (лабораторные).
+Порядок и нумерация — в `book/_quarto.yml` (`chapters:` и `appendices:`).
 
-```bash
-python -c "import fracbook; print(fracbook.__version__)"
-pytest -q
-```
+## Добавление главы
 
-## Локальный просмотр (без публикации)
-
-Из корня проекта, **с активированным `.venv`**:
-
-```bash
-quarto preview book/
-```
-
-Откроется в браузере по адресу `http://localhost:XXXX`, авто-перерендер при изменении `.qmd`/`.py`/конфигов.
-
-В Positron (Windows у преподавателя) тот же эффект даёт команда **Quarto: Preview** в палитре команд.
-
-> **Почему нет pre-render хука в `_quarto.yml`?** Quarto вызывает pre-render хуки через `cmd /c` на Windows и через `sh -c` на Linux — единого кросс-платформенного механизма нет. Студент с битым `fracbook` всё равно не сможет закоммитить: CI гоняет `pytest` + `quarto render` как отдельные шаги, и красный CI блокирует PR. Локальная страховка — та же тройка `pytest -q && ruff check src tests && quarto render book/`, что и в CI.
-
-## Сборка html
-
-```bash
-quarto render book/
-```
-
-Артефакт — в `book/_book/`. Эта папка в `.gitignore`, в `master` не попадает.
-
-## Публикация на GitVerse Pages
-
-Только преподаватель. Скрипт `tools/publish_pages.py` (кросс-платформенный, на Python). Запускается через тонкую обёртку:
-
-| ОС / shell | Команда |
-|---|---|
-| Linux, macOS, Git Bash | `./tools/publish-pages.sh` |
-| Windows (cmd) | `tools\publish-pages.cmd` |
-| Windows (PowerShell) | `tools\publish-pages.ps1` |
-| Любая, напрямую | `python tools/publish_pages.py` |
-
-Что делает:
-1. Проверяет, что рабочее дерево `master` чистое.
-2. Проверяет, что `quarto` есть в `PATH` и версия ≥ 1.9. Сверяет с `.quarto-version`, если тот есть.
-3. Прогоняет `pytest -q` и `ruff check src tests` (если не передан `--no-tests`).
-4. `quarto render book/`.
-5. Подготавливает worktree `.worktrees/pages` (создаёт при первом запуске, иначе — переиспользует и подтягивает свежий `origin/pages`).
-6. Очищает worktree (кроме `.git`) и копирует туда `book/_book/` + `tools/404.html`.
-7. Коммитит в `pages` с сообщением `publish: YYYY-MM-DD` и пушит `--force-with-lease`.
-
-После выполнения сайт обновится на **https://khabibullinra.gitverse.site/fracbook/** через ~1–2 минуты (CDN-кэш GitVerse Pages).
-
-### Опции скрипта
-
-```bash
-./tools/publish-pages.sh --dry-run     # показать шаги, ничего не менять
-./tools/publish-pages.sh --no-render   # использовать уже собранный book/_book/
-./tools/publish-pages.sh --no-tests    # пропустить pytest/ruff
-./tools/publish-pages.sh --prune       # в конце подчистить устаревшие worktree-записи
-./tools/publish-pages.sh -h            # справка
-```
-
-## CI
-
-`.gitverse/workflows/ci.yaml` на каждый push/PR в `master` гоняет:
-1. `pip install -e .[dev]`
-2. `ruff check src tests`
-3. `pytest -q`
-4. `quarto render book/` — smoke-test `.qmd` (ловятся синтаксические ошибки, битые crossref, неработающие Python-чанки)
-5. Загружает собранный `book/_book/` как артефакт `book-html` (на 7 дней) — можно посмотреть глазами прямо в PR.
-
-Публикация в Pages из CI **не** делается. Это сознательное упрощение: в Pages пушит только преподаватель, через `tools/publish_pages.py`.
+1. Создать файл `book/lecture-NN-<короткий-slug>.qmd` (или `tutorial-...`).
+2. В frontmatter — заголовок:
+   ```yaml
+   ---
+   title: "Лекция N. <название>"
+   ---
+   ```
+3. Добавить в `book/_quarto.yml` в секцию `chapters:` (для лекции) или
+   `appendices:` (для лабораторной). Порядок определяет нумерацию.
+4. Локально: `quarto preview book/` → проверить навигацию и рендер.
+5. PR в `dev`. После ревью и мержа — попадёт в `master`, CI опубликует.
 
 ## Troubleshooting
 
-**Сайт показывает старую версию.**
-CDN-кэш GitVerse Pages. Подождите 1–2 минуты или откройте в режиме инкогнито.
+### `quarto` не найден
 
-**`push --force-with-lease` отклонён.**
-Кто-то (или вы в другой сессии) обновил `origin/pages`. Скрипт защищает от случайной перезаписи чужих изменений. Сделайте `git fetch origin pages` → `git -C .worktrees/pages merge --ff-only origin/pages` → повторите публикацию.
+В новом терминале после установки: см. `PUBLISHING.md` в корне →
+«Установка инструментов». На Windows: перезапустить PowerShell после
+добавления в PATH.
 
-**`quarto` не найден.**
-Активируйте `.venv` (если используете CLI) или установите Quarto по инструкции выше. В Positron `quarto` доступен автоматически.
+Версия другая — `quarto --version` показывает не `1.9.38`. Поставь
+правильную версию (см. ADR-0001 и `PUBLISHING.md`).
 
-**Версия Quarto в `PATH` не совпадает с `.quarto-version`.**
-Преподаватель увидит предупреждение в начале `publish_pages.py`. На Linux — обновите ссылку `~/.local/bin/quarto` на нужную версию. На Windows (Positron) — Positron-Quarto игнорирует файл, синхронизируйте версию через обновление Positron.
+### Ошибка `Error resolving header-includes: unable to open file <script ...>`
 
-**404 на сайте без явной причины.**
-Содержимое ветки `pages` на сервере и локально разошлось. Сверьте `git -C .worktrees/pages log --oneline | head` с `git log origin/pages --oneline | head`. При расхождении — принудительно пересинхронизируйте.
+`include-in-header` в `_quarto.yml` ожидает **путь к файлу**, не inline-строку.
+Содержимое inline-тега положи в `book/_include/header.html`, а в YAML
+укажи путь к нему:
 
-**Push в `pages` случайно сделал студент.**
-Откатите: `git -C .worktrees/pages reset --hard <предыдущий-коммит>` → `git push --force-with-lease origin pages`.
+```yaml
+format:
+  html:
+    include-in-header: _include/header.html
+```
 
-**`pytest -q` падает на pre-render хуке.**
-Сначала чините тесты в `src/fracbook/`. Pre-render хука в проекте сейчас нет (см. выше), так что это сообщение — на случай, если вы добавите её сами.
+Содержимое `book/_include/header.html`:
+
+```html
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+```
+
+Если в офлайне — скачай Plotly в `book/_include/plotly.min.js` и поменяй
+`src` на относительный путь. Quarto сам скопирует оба файла в `_book/`.
+
+### `Error: filter main.lua: ... Unable to resolve crossref @fig-...`
+
+Crossref `@fig-some-label` не находит чанк с `label: fig-some-label`.
+Проверь:
+
+- Лейбл есть в frontmatter чанка: `#| label: fig-some-label`
+- Ссылка пишется как `[@fig-some-label]` (с префиксом `fig-` и `@`)
+- Лейбл уникален в рамках книги
+
+OJS-блоки тоже поддерживают `label` + `fig-cap` (Quarto ≥ 1.4). Если
+crossref на OJS-чанк не работает — переименуй ссылку в тексте на «на
+рисунке ниже».
+
+### Python-чанк не запускается / падает
+
+Проверь, что `.venv` активирован (или выбран как interpreter в Positron).
+Внутри чанка — только вызовы `fracbook` (см. `book/CONTRIBUTING.md`).
+Если падает с `ModuleNotFoundError: No module named 'fracbook'` — выполни
+`pip install -e .[dev]` заново.
+
+### OJS-блок возвращает пустой график
+
+`Plotly is not defined` — CDN не загрузился. Проверь:
+
+1. `book/_include/header.html` существует и содержит `<script src="...">`.
+2. В `_quarto.yml` стоит `include-in-header: _include/header.html`.
+3. В DevTools браузера (F12) на опубликованной странице — Network → нет ли
+   ошибки на `cdn.plot.ly`.
+
+### PDF-рендер падает / пустая страница
+
+PDF в этой методичке **опционально** (см. `AGENTS.md`). HTML — основной
+формат. Если нужен PDF:
+
+- `kaleido` уже в `dev`-зависимостях (`pyproject.toml`).
+- `quarto render book/ --to pdf` соберёт PDF. Plotly-графики уйдут как
+  статичные PNG.
+- Если падает — смотри в `book/_book/*.log`. Типичная причина —
+  нехватка памяти для больших 3D-графиков; уменьши `n` (количество
+  точек на окружности) в чанке.
+
+### Локально зелёный, CI красный
+
+Версия Quarto другая. Сверь `quarto --version` с `.quarto-version`. Или
+Python-окружение (CI использует чистый `pip install -e .[dev]`, без
+дополнительных системных пакетов).
+
+### Долго рендерится
+
+Большие 3D-графики (Plotly, OJS-схемы с `n > 100`) — медленно. Если
+`quarto preview` тормозит — уменьши `n` (например, с 40 до 20), это не
+влияет на визуальное качество для типичных углов обзора.

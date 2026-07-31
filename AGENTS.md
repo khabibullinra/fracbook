@@ -53,10 +53,12 @@
 Что **не** делать (конвенция, не репозиторное ограничение):
 - Не редактировать и не коммитить `book/_book/`, `book/_freeze/`,
   `notebooks/_site/` — это выход сборки.
-- **Не пушить в ветку `pages`** — это делает только преподаватель
-  через `tools/publish_pages.py` (или шимы `tools/publish-pages.{sh,cmd,ps1}`).
-  Агент не инициирует push в `pages`, даже если пользователь явно попросил
-  собрать книгу локально.
+- **Не пушить в ветку `pages` руками.** Публикация в `pages` — задача
+  CI-джоба `publish` (`.gitverse/workflows/ci.yaml`); он срабатывает
+  автоматически после мержа в `master`. Агент не инициирует push в
+  `pages`, даже если пользователь явно попросил — это требование
+  политики, а не вопрос удобства. Архитектурное обоснование — в
+  `docs/decisions/0003-publication-workflow.md`.
 - Не коммитить `.venv/`, `_freeze/`, `.ipynb_checkpoints/`, бинарь
   симуляторов (`.geos`, `.unrst`, `.INIT`, `.EGRID`, `.MSG`, `.PRT`,
   `.log`).
@@ -65,32 +67,24 @@
 
 ## Публикация
 
-Подробно — в `book/PUBLISHING.md`. Кратко — пайплайн кросс-платформенный
-(драйвер на Python, шимы под основные оболочки):
+Подробно — в `PUBLISHING.md` (в корне репо). Кратко:
 
 1. Сборка html (любая ОС):
    ```bash
    quarto render book/
    ```
-   Артефакт — `book/_book/`, в `master` не коммитится.
+   Артефакт — `book/_book/`, в репо не коммитится.
 
-2. Публикация в Pages (только преподаватель, любая ОС):
-
-   | ОС / shell | Команда |
-   |---|---|
-   | Linux, macOS, Git Bash | `./tools/publish-pages.sh` |
-   | Windows (cmd) | `tools\publish-pages.cmd` |
-   | Windows (PowerShell) | `tools\publish-pages.ps1` |
-   | Любая, напрямую | `python tools/publish_pages.py` |
-
-   Шимы — тонкие обёртки, вся логика в `publish_pages.py`: проверка
-   чистого дерева → `pytest` + `ruff` → `quarto render` → копирование
-   в worktree `.worktrees/pages` → `commit` + `push --force-with-lease`.
+2. Публикация в Pages — **автоматически** через CI. Push в `master` (после
+   PR с ревью) → job `test` (smoke) → job `publish` (рендер + push в
+   `pages`). Через 1–2 минуты сайт обновляется на
+   **https://khabibullinra.gitverse.site/fracbook/**.
 
 3. Сверка версии Quarto: файл `.quarto-version` в корне. Quarto CLI
-   (Linux, macOS) подхватывает его автоматически; **Positron-Quarto
+   (Linux, macOS, Windows) подхватывает его автоматически; **Positron-Quarto
    на Windows игнорирует `.quarto-version`** — там версию сверяют
-   глазами с этим файлом и обновляют Positron при расхождении.
+   глазами с этим файлом и обновляют Positron при расхождении, либо
+   ставят Quarto CLI 1.9.38 в систему (см. `PUBLISHING.md`).
 
 После публикации сайт обновляется на
 **https://khabibullinra.gitverse.site/fracbook/** через ~1–2 минуты
@@ -111,5 +105,8 @@
    артефакт `book-html` (хранится 7 дней, можно скачать прямо из PR
    и посмотреть глазами).
 
-Деплоя в Pages из CI **нет** — это сознательное упрощение: в `pages`
-пушит только преподаватель через `tools/publish_pages.py`.
+Деплой в Pages — отдельный job `publish` в том же workflow, срабатывает
+только на push в `master` (после зелёного `test`) и пушит `book/_book/`
+в ветку `pages` через `${{ secrets.PAGES_TOKEN }}`. Никто руками в
+`pages` не пушит. Подробно — `docs/decisions/0003-publication-workflow.md`
+и `PUBLISHING.md` → «Защита веток».
