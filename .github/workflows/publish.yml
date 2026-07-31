@@ -77,12 +77,19 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    # environment github-pages создан автоматически при включении
-    # Pages в UI. Branch-restriction по умолчанию = default branch,
-    # теперь это `master` — так что deploy пройдёт штатно.
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # ВНИМАНИЕ: блок `environment: github-pages` намеренно убран.
+    # При включении GitHub Pages в UI создаётся environment
+    # `github-pages` с `custom_branch_policies: true` и в whitelist
+    # сидит `main` (default branch на момент включения). Удаление
+    # ветки `main` и смена default branch НЕ обновляют этот список
+    # автоматически, а API environments не позволяет его править
+    # без admin-токена. В результате deploy job падает за 2 секунды
+    # с `Branch "master" is not allowed to deploy to github-pages
+    # due to environment protection rules`.
+    # Чтобы вернуть branch protection, добавь `master` вручную:
+    # Settings → Environments → github-pages → Deployment branches
+    # → Selected branches → добавь `master`. После этого раскомментируй
+    # блок `environment` ниже.
 
     steps:
       - id: deployment
