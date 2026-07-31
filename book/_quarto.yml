@@ -8,6 +8,7 @@ book:
   language: ru
   site-url: https://khabibullinra.gitverse.site/fracbook/
   repo-url: https://gitverse.ru/khabibullinra/fracbook
+  repo-branch: master
   repo-actions: [edit]
   chapters:
     - index.qmd

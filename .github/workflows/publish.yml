@@ -1,13 +1,13 @@
 name: CI publish
 
-# Только на push в main (default branch GitHub).
-# PR в main не триггерит этот workflow (его ловит test.yml).
+# Только на push в master (default branch на обоих ремотах).
+# PR в master не триггерит этот workflow (его ловит test.yml).
 # В отличие от GitVerse-варианта (publish.yaml), тут используется
 # встроенный механизм GitHub Pages (actions/deploy-pages) — не нужна
 # отдельная ветка pages и не нужен PAGES_TOKEN, всё через GITHUB_TOKEN.
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 # Pages-deploy требует явных permissions.
 permissions:
