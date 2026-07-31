@@ -63,18 +63,18 @@
 
 - **Git for Windows** — [gitforwindows.org](https://gitforwindows.org/), далее → Next → Next → Finish.
 - **Python 3.12** — [python.org/downloads](https://www.python.org/downloads/), при установке галка **Add Python to PATH**.
-- **Quarto 1.9.38** — см. `PUBLISHING.md`, раздел «Quarto CLI 1.9.38», есть готовые команды для PowerShell.
+- **Quarto 1.10.18** — ставится через `winget install --id Posit.Quarto -e` (Windows) или скачивается с [quarto.org/docs/download](https://quarto.org/docs/download/) (Linux, macOS). Подробно — в `PUBLISHING.md`.
 
 Проверка в **новом** PowerShell:
 
 ```powershell
 git --version       # git version 2.4x.x
 python --version    # Python 3.12.x
-quarto --version    # 1.9.38
+quarto --version    # 1.10.18
 ```
 
 В Positron Git и Python уже есть. Quarto — встроен, но версия может быть
-другая; **поставьте 1.9.38 в систему** по инструкции (отличается от
+другая; **поставьте 1.10.18 в систему** по инструкции (отличается от
 Positron-версии, специально).
 
 ## 5. Клонирование своего форка

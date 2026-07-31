@@ -84,7 +84,7 @@
    (Linux, macOS, Windows) подхватывает его автоматически; **Positron-Quarto
    на Windows игнорирует `.quarto-version`** — там версию сверяют
    глазами с этим файлом и обновляют Positron при расхождении, либо
-   ставят Quarto CLI 1.9.38 в систему (см. `PUBLISHING.md`).
+   ставят Quarto CLI 1.10.18 в систему (см. `PUBLISHING.md`).
 
 После публикации сайт обновляется на
 **https://khabibullinra.gitverse.site/fracbook/** через ~1–2 минуты

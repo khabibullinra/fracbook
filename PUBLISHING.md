@@ -22,7 +22,7 @@
 |---|---|---|
 | **Git** | ≥ 2.40 | Контроль версий, PR, push |
 | **Python** | ≥ 3.12 | Расчётная библиотека `fracbook`, рендер графиков |
-| **Quarto CLI** | 1.9.38 (зафиксировано в `.quarto-version`) | Сборка книги, OJS-интерактив |
+| **Quarto CLI** | 1.10.18 (зафиксировано в `.quarto-version`) | Сборка книги, OJS-интерактив |
 
 ОС: Linux, macOS, Windows 10/11. Всё работает кросс-платформенно.
 
@@ -49,40 +49,52 @@
 
 Проверка: `python --version` показывает 3.12.x.
 
-### Quarto CLI 1.9.38
+### Quarto CLI 1.10.18
 
 **Версия зафиксирована** в файле `.quarto-version` в корне репо. Несовпадение
 версии с тем, что в `.quarto-version`, — источник трудноуловимых багов
 рендера.
 
-**Windows** (PowerShell):
+**Windows** (PowerShell, от администратора для `winget` или из Microsoft
+Store-версии `winget`):
 
 ```powershell
-$ProgressPreference = 'SilentlyContinue'
-$tmp = Join-Path $env:TEMP 'quarto.zip')
-Invoke-WebRequest -Uri 'https://github.com/quarto-dev/quarto-cli/releases/download/v1.9.38/quarto-1.9.38-win.zip' -OutFile $tmp
-Expand-Archive -Path $tmp -DestinationPath "$env:USERPROFILE\Tools\Quarto" -Force
-[Environment]::SetEnvironmentVariable('Path', $env:Path + ";$env:USERPROFILE\Tools\Quarto\bin", 'User')
-# перезапустить PowerShell
-quarto --version  # должно быть 1.9.38
+winget install --id Posit.Quarto -e
+# перезапустить PowerShell, чтобы подхватить PATH
+quarto --version  # должно быть 1.10.18
 ```
+
+Если `winget` недоступен (Windows 10 без App Installer): скачать MSI с
+[github.com/quarto-dev/quarto-cli/releases](https://github.com/quarto-dev/quarto-cli/releases/download/v1.10.18/quarto-1.10.18-win.msi)
+→ двойной клик → Install. PATH добавляется инсталлятором автоматически.
 
 **Linux**:
 
 ```bash
 QV=$(cat .quarto-version)
 wget -qO /tmp/quarto.tar.gz "https://github.com/quarto-dev/quarto-cli/releases/download/v${QV}/quarto-${QV}-linux-amd64.tar.gz"
-mkdir -p ~/.local/share/quarto-${QV}
-tar -xzf /tmp/quarto.tar.gz -C ~/.local/share/quarto-${QV} --strip-components=1
-ln -sf ~/.local/share/quarto-${QV}/bin/quarto ~/.local/bin/quarto
+sudo mkdir -p /opt/quarto
+sudo tar -xzf /tmp/quarto.tar.gz -C /opt/quarto --strip-components=1
+sudo ln -sf /opt/quarto/bin/quarto /usr/local/bin/quarto
 quarto --version
 ```
 
-**macOS** (через `brew` отдаёт свою версию, не подходит — лучше руками как
-для Linux, только macOS-архив).
+**macOS**:
+
+```bash
+QV=$(cat .quarto-version)
+wget -qO /tmp/quarto.tar.gz "https://github.com/quarto-dev/quarto-cli/releases/download/v${QV}/quarto-${QV}-macos.tar.gz"
+sudo mkdir -p /opt/quarto
+sudo tar -xzf /tmp/quarto.tar.gz -C /opt/quarto --strip-components=1
+sudo ln -sf /opt/quarto/bin/quarto /usr/local/bin/quarto
+quarto --version
+```
+
+(`brew install quarto` ставит свою версию, не подходит — фиксируем
+1.10.18 руками.)
 
 Проверка после установки в **новом** терминале: `quarto --version` →
-`1.9.38`.
+`1.10.18`.
 
 ## Первый запуск
 
@@ -108,7 +120,7 @@ pip install -e .[dev]
 # 5. Проверить
 pytest -q                # все тесты зелёные
 ruff check src tests     # линтер чист
-quarto --version         # 1.9.38
+quarto --version         # 1.10.18
 ```
 
 Если в Positron — `interpreter` в палитре команд → выбрать `.venv`. Пакет

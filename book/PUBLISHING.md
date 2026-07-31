@@ -62,7 +62,7 @@ book/
 «Установка инструментов». На Windows: перезапустить PowerShell после
 добавления в PATH.
 
-Версия другая — `quarto --version` показывает не `1.9.38`. Поставь
+Версия другая — `quarto --version` показывает не `1.10.18`. Поставь
 правильную версию (см. ADR-0001 и `PUBLISHING.md`).
 
 ### Ошибка `Error resolving header-includes: unable to open file <script ...>`
