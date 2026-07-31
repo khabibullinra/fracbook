@@ -6,6 +6,9 @@ book:
   title: "Методичка по гидравлическому разрыву пласта"
   author: "khabibullinra"
   language: ru
+  site-url: https://khabibullinra.gitverse.site/fracbook/
+  repo-url: https://gitverse.ru/khabibullinra/fracbook
+  repo-actions: [edit]
   chapters:
     - index.qmd
     - lecture-01-intro.qmd
@@ -36,6 +39,13 @@ format:
     # include-in-header ожидает путь к файлу, поэтому сам <script> лежит
     # в _include/header.html, а здесь только путь.
     include-in-header: _include/header.html
+
+# baseurl нужен, потому что сайт публикуется в подпути:
+# - GitVerse Pages: https://khabibullinra.gitverse.site/fracbook/
+# - GitHub Pages:  https://khabibullinra.github.io/fracbook/
+# Без baseurl относительные ссылки ломаются в обоих случаях.
+site:
+  baseurl: /fracbook/
 
 crossref:
   fig-title: "Рисунок"

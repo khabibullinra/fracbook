@@ -1,0 +1,80 @@
+name: CI publish
+
+# Только на push в main (default branch GitHub).
+# PR в main не триггерит этот workflow (его ловит test.yml).
+# В отличие от GitVerse-варианта (publish.yaml), тут используется
+# встроенный механизм GitHub Pages (actions/deploy-pages) — не нужна
+# отдельная ветка pages и не нужен PAGES_TOKEN, всё через GITHUB_TOKEN.
+on:
+  push:
+    branches: [main]
+
+# Pages-deploy требует явных permissions.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Quarto
+        shell: bash
+        run: |
+          set -euo pipefail
+          QV=$(cat .quarto-version)
+          wget -qO /tmp/quarto.tar.gz \
+            "https://github.com/quarto-dev/quarto-cli/releases/download/v${QV}/quarto-${QV}-linux-amd64.tar.gz"
+          sudo mkdir -p /opt/quarto
+          sudo tar -xzf /tmp/quarto.tar.gz -C /opt/quarto --strip-components=1
+          sudo ln -sf /opt/quarto/bin/quarto /usr/local/bin/quarto
+          quarto --version
+
+      - name: Install package and dev deps
+        run: pip install -e .[dev]
+
+      - name: Print versions
+        run: |
+          python --version
+          ruff --version
+          pytest --version
+          quarto --version
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Tests
+        run: pytest -q
+
+      - name: Render book (smoke-test .qmd)
+        run: quarto render book/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: book/_book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
