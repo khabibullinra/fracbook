@@ -32,6 +32,10 @@ format:
   html:
     theme: cosmo
     toc: true
+    # Plotly.js — для интерактивных 3D-схем (OJS-блоки в лекциях).
+    # include-in-header ожидает путь к файлу, поэтому сам <script> лежит
+    # в _include/header.html, а здесь только путь.
+    include-in-header: _include/header.html
 
 crossref:
   fig-title: "Рисунок"

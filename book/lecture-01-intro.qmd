@@ -19,8 +19,172 @@ title: "Лекция 1. Введение в дисциплину"
 Ключевой вопрос - как ГРП повлияет на показатели разработки месторождения, как изменятся дебит и нефти и КИН.
 Для ответа на этот вопрос широко используются математические модели и компьютерные алгоритмы.
 
-Курс посвящен расчетам производительности скважин с ГРП с использованием современных подходов - аналитический, полуаналитических и численных методов. 
-Широко используются расчеты на python и тНавигатор. Курс предусматривает выполнение лабораторных работ и домашних заданий по расчетам производительности скважин с ГРП 
+Курс посвящен расчетам производительности скважин с ГРП с использованием современных подходов - аналитический, полуаналитических и численных методов.
+Широко используются расчеты на python и тНавигатор. Курс предусматривает выполнение лабораторных работ и домашних заданий по расчетам производительности скважин с ГРП
+
+
+## Схема скважины с трещиной ГРП
+
+На @fig-fracture-scheme представлена интерактивная 3D-схема вертикальной
+скважины с трещиной гидроразрыва в круговом пласте. Скважина показана
+вертикальной линией, проходящей через центр пласта; трещина — оранжевый
+параллелепипед, пересекающий скважину; пласт — полупрозрачный цилиндр
+(визуально увеличенная прозрачность, чтобы трещина была видна).
+
+Бегунки позволяют менять полудлину $x_f$, высоту $h_f$ и ширину $w_f$
+трещины; сцену можно вращать мышью (зажать левую кнопку), зумить колесом,
+скачивать PNG через встроенный toolbar Plotly.
+
+::: {.callout-note}
+## Замечание про ширину трещины
+
+Реальная ширина (апертура) трещины $w_f$ после ГРП составляет
+единицы миллиметров, тогда как полудлина $x_f$ — десятки и сотни метров.
+Соотношение масштабов — 3–4 порядка. Чтобы параллелепипед был виден
+на схеме, ширина визуально увеличена в 500 раз; в подписях это явно
+отмечено (`$w_f = X$ мм (×500)`). Это стандартный приём в учебных
+3D-схемах ГРП.
+:::
+
+```{ojs}
+//| label: fig-fracture-scheme
+//| fig-cap: "Скважина с трещиной ГРП в круговом пласте. Бегунки меняют полудлину, высоту и ширину трещины."
+//| echo: false
+
+// === Бегунки ===
+viewof xf = Inputs.range([20, 150], {value: 60, step: 1, label: "Полудлина xf, м"})
+viewof hf = Inputs.range([5, 50],   {value: 20, step: 1, label: "Высота hf, м"})
+viewof wf = Inputs.range([1, 30],   {value: 5,  step: 0.5, label: "Ширина wf, мм"})
+
+widthScale = 500
+
+// === Геометрия ===
+buildScene = (xfVal, hfVal, wfMm) => {
+  const r = 200, h = 30, n = 40;
+  const wfDisp = (wfMm / 1000) * widthScale;
+  const hx = xfVal, hy = wfDisp / 2, hz = hfVal / 2;
+
+  const well = {
+    type: 'scatter3d',
+    x: [0, 0], y: [0, 0], z: [-h / 2 - 30, h / 2 + 30],
+    mode: 'lines', line: {color: '#222', width: 8},
+    name: 'Скважина', hoverinfo: 'skip',
+  };
+
+  const v = [
+    [-hx, -hy, -hz], [+hx, -hy, -hz], [+hx, +hy, -hz], [-hx, +hy, -hz],
+    [-hx, -hy, +hz], [+hx, -hy, +hz], [+hx, +hy, +hz], [-hx, +hy, +hz],
+  ];
+  const ijk = [
+    [0,1,2], [0,2,3], [4,5,6], [4,6,7],
+    [3,2,6], [3,6,7], [0,1,5], [0,5,4],
+    [1,2,6], [1,6,5], [0,3,7], [0,7,4],
+  ];
+  const fracture = {
+    type: 'mesh3d',
+    x: v.map(p => p[0]), y: v.map(p => p[1]), z: v.map(p => p[2]),
+    i: ijk.map(t => t[0]), j: ijk.map(t => t[1]), k: ijk.map(t => t[2]),
+    color: '#ff6b35', opacity: 0.9, name: 'Трещина ГРП',
+  };
+
+  const xR = [], yR = [], zR = [];
+  const iA = [], jA = [], kA = [];
+
+  for (let kk = 0; kk < 2; kk++) {
+    for (let ii = 0; ii < n; ii++) {
+      const t = 2 * Math.PI * ii / n;
+      xR.push(r * Math.cos(t));
+      yR.push(r * Math.sin(t));
+      zR.push(kk === 0 ? -h / 2 : h / 2);
+    }
+  }
+  for (let ii = 0; ii < n; ii++) {
+    const a = ii, b = (ii + 1) % n;
+    const c = n + ii, d = n + ((ii + 1) % n);
+    iA.push(a, b); jA.push(b, d); kA.push(c, c);
+  }
+
+  const topC = xR.length;
+  xR.push(0); yR.push(0); zR.push(h / 2);
+  for (let ii = 0; ii < n; ii++) {
+    const t = 2 * Math.PI * ii / n;
+    xR.push(r * Math.cos(t));
+    yR.push(r * Math.sin(t));
+    zR.push(h / 2);
+  }
+  for (let ii = 0; ii < n; ii++) {
+    iA.push(topC);
+    jA.push(topC + 1 + ii);
+    kA.push(topC + 1 + ((ii + 1) % n));
+  }
+
+  const botC = xR.length;
+  xR.push(0); yR.push(0); zR.push(-h / 2);
+  for (let ii = 0; ii < n; ii++) {
+    const t = 2 * Math.PI * ii / n;
+    xR.push(r * Math.cos(t));
+    yR.push(r * Math.sin(t));
+    zR.push(-h / 2);
+  }
+  for (let ii = 0; ii < n; ii++) {
+    iA.push(botC);
+    jA.push(botC + 1 + ((ii + 1) % n));
+    kA.push(botC + 1 + ii);
+  }
+
+  const reservoir = {
+    type: 'mesh3d',
+    x: xR, y: yR, z: zR,
+    i: iA, j: jA, k: kA,
+    color: '#a8d5e2', opacity: 0.30, name: 'Пласт',
+    hoverinfo: 'skip', flatshading: true,
+  };
+
+  const labels = {
+    type: 'scatter3d',
+    x: [xfVal * 0.55, xfVal + 12, xfVal + 12],
+    y: [0, 0, wfDisp / 2 + 0.1],
+    z: [0, hfVal / 2 + 5, -hfVal / 2 - 5],
+    mode: 'text',
+    text: [
+      `Xf = ${xfVal.toFixed(0)} м`,
+      `hf = ${hfVal.toFixed(0)} м`,
+      `wf = ${wfMm.toFixed(1)} мм (×${widthScale})`,
+    ],
+    textfont: {size: 14, color: ['#c0392b', '#2980b9', '#27ae60']},
+    showlegend: false, hoverinfo: 'skip',
+  };
+
+  return {
+    traces: [reservoir, well, fracture, labels],
+    layout: {
+      title: `Xf = ${xfVal.toFixed(0)} м, hf = ${hfVal.toFixed(0)} м, wf = ${wfMm.toFixed(1)} мм`,
+      scene: {
+        xaxis: {title: 'X, м'},
+        yaxis: {title: 'Y, м'},
+        zaxis: {title: 'Z, м'},
+        aspectmode: 'data',
+        camera: {eye: {x: 1.5, y: 1.5, z: 0.8}},
+      },
+      margin: {l: 0, r: 0, b: 0, t: 40},
+      showlegend: true,
+    },
+  };
+}
+
+// === Рендер ===
+{
+  const fig = buildScene(xf, hf, wf);
+  const div = DOM.element('div', {style: 'width:100%; height:600px; margin: 1em 0;'});
+  if (typeof Plotly !== 'undefined') {
+    Plotly.newPlot(div, fig.traces, fig.layout, {responsive: true});
+    invalidation.then(() => Plotly.purge(div));
+  } else {
+    div.textContent = 'Plotly.js не загрузился — проверьте CDN в _quarto.yml.';
+  }
+  return div;
+}
+```
 
 
 ## Модели оценки производительности скважин с трещинами ГРП

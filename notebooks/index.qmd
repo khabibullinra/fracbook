@@ -1,5 +1,9 @@
 ---
 title: "Экспериментальные расчёты"
+jupyter: python3
+format:
+  html:
+    include-in-header: '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
 ---
 
 # Эксперименты и расчёты
@@ -31,3 +35,385 @@ quarto preview notebooks/
 # или просто открыть в JupyterLab:
 jupyter lab notebooks/
 ```
+
+# Интерактивные 3D-схемы
+
+Ниже два варианта одной и той же схемы: **вертикальная скважина с трещиной ГРП
+в круговом пласте**. Слайдеры меняют полудлину `xf`, высоту `hf` и ширину `wf` трещины.
+Сцену можно вращать мышью (зажать левую кнопку и двигать), зумить колесом,
+скачивать PNG через встроенный toolbar Plotly.
+
+> **Про ширину.** Реальная ширина трещины (1–30 мм) на 3–4 порядка меньше её длины.
+> Чтобы параллелепипед был виден, в обоих вариантах ширина визуально увеличена
+> в 500 раз — это явно указано в подписи (`wf = X мм (×500)`). Стандартный приём
+> в учебных 3D-схемах ГРП.
+
+## 1. Plotly (Python) — дискретные пресеты
+
+Слайдер переключает между 25 комбинациями
+(`xf ∈ {30, 60, 90, 120, 150} м` × `hf ∈ {10, 20, 30, 40, 50} м`).
+Внутри пресета сцену можно вращать, зумить, выделять трассы, скачивать PNG.
+
+```{{python}}
+import numpy as np
+import plotly.graph_objects as go
+
+PRESETS_XF = [30.0, 60.0, 90.0, 120.0, 150.0]
+PRESETS_HF = [10.0, 20.0, 30.0, 40.0, 50.0]
+PRESET_WF_MM = 5.0
+WIDTH_SCALE = 500.0
+
+
+def build_fig(xf, hf, wf_mm, r_res=200.0, h_res=30.0, n=40):
+    """Строит фигуру: скважина + трещина ГРП + полупрозрачный круговой пласт."""
+    wf_real = wf_mm / 1000.0
+    wf_disp = wf_real * WIDTH_SCALE
+    fig = go.Figure()
+
+    # --- Пласт: боковая поверхность (революция) ---
+    theta = np.linspace(0, 2 * np.pi, n)
+    z_arr = np.linspace(-h_res / 2, h_res / 2, 2)
+    Theta, Z = np.meshgrid(theta, z_arr)
+    fig.add_trace(go.Surface(
+        x=r_res * np.cos(Theta), y=r_res * np.sin(Theta), z=Z,
+        opacity=0.30, showscale=False,
+        colorscale=[[0, '#a8d5e2'], [1, '#a8d5e2']],
+        name='Пласт', hoverinfo='skip', showlegend=True,
+    ))
+
+    # --- Пласт: верхняя и нижняя крышки ---
+    R, T = np.meshgrid(np.linspace(0, r_res, 20), theta)
+    Xd, Yd = R * np.cos(T), R * np.sin(T)
+    for z_cap in (h_res / 2, -h_res / 2):
+        fig.add_trace(go.Surface(
+            x=Xd, y=Yd, z=np.full_like(Xd, z_cap),
+            opacity=0.30, showscale=False,
+            colorscale=[[0, '#a8d5e2'], [1, '#a8d5e2']],
+            hoverinfo='skip', showlegend=False,
+        ))
+
+    # --- Скважина ---
+    fig.add_trace(go.Scatter3d(
+        x=[0, 0], y=[0, 0], z=[-h_res / 2 - 30, h_res / 2 + 30],
+        mode='lines', line=dict(color='#222', width=8),
+        name='Скважина', hoverinfo='skip',
+    ))
+
+    # --- Трещина (параллелепипед через Mesh3d) ---
+    hx, hy, hz = xf, wf_disp / 2, hf / 2
+    verts = np.array([
+        [-hx, -hy, -hz], [+hx, -hy, -hz],
+        [+hx, +hy, -hz], [-hx, +hy, -hz],
+        [-hx, -hy, +hz], [+hx, -hy, +hz],
+        [+hx, +hy, +hz], [-hx, +hy, +hz],
+    ])
+    ijk = [
+        (0, 1, 2), (0, 2, 3), (4, 5, 6), (4, 6, 7),
+        (3, 2, 6), (3, 6, 7), (0, 1, 5), (0, 5, 4),
+        (1, 2, 6), (1, 6, 5), (0, 3, 7), (0, 7, 4),
+    ]
+    fig.add_trace(go.Mesh3d(
+        x=verts[:, 0], y=verts[:, 1], z=verts[:, 2],
+        i=[t[0] for t in ijk], j=[t[1] for t in ijk], k=[t[2] for t in ijk],
+        color='#ff6b35', opacity=0.90,
+        name='Трещина ГРП', showlegend=True,
+    ))
+
+    # --- Подписи (Xf, hf, wf) внутри сцены ---
+    fig.add_trace(go.Scatter3d(
+        x=[xf * 0.55, xf + 12, xf + 12],
+        y=[0, 0, wf_disp / 2 + 0.1],
+        z=[0, hf / 2 + 5, -hf / 2 - 5],
+        mode='text',
+        text=[
+            f'Xf = {xf:.0f} м',
+            f'hf = {hf:.0f} м',
+            f'wf = {wf_mm:.1f} мм (×{WIDTH_SCALE:.0f})',
+        ],
+        textfont=dict(size=14, color=['#c0392b', '#2980b9', '#27ae60']),
+        showlegend=False, hoverinfo='skip',
+    ))
+
+    fig.update_layout(
+        scene=dict(
+            xaxis_title='X, м',
+            yaxis_title='Y, м',
+            zaxis_title='Z, м',
+            aspectmode='data',
+            camera=dict(eye=dict(x=1.5, y=1.5, z=0.8)),
+        ),
+        title=f'Xf = {xf:.0f} м, hf = {hf:.0f} м, wf = {wf_mm:.1f} мм',
+        margin=dict(l=0, r=0, b=0, t=40),
+        showlegend=True,
+    )
+    return fig
+
+
+# 25 кадров: полная решётка пресетов
+frames = []
+labels = []
+for i, xf in enumerate(PRESETS_XF):
+    for j, hf in enumerate(PRESETS_HF):
+        f = build_fig(xf, hf, PRESET_WF_MM)
+        frames.append(go.Frame(data=f.data, name=f'f{i}_{j}'))
+        labels.append(f'Xf={xf:.0f} hf={hf:.0f}')
+
+# Базовая фигура — первый кадр
+base_fig = build_fig(PRESETS_XF[0], PRESETS_HF[0], PRESET_WF_MM)
+base_fig.frames = frames
+
+# Слайдер
+sliders = [{
+    'active': 0,
+    'currentvalue': {'prefix': 'Пресет: ', 'font': {'size': 14}},
+    'pad': {'t': 50},
+    'steps': [
+        {
+            'args': [[f.name], {'frame': {'duration': 0, 'redraw': True},
+                                'mode': 'immediate'}],
+            'label': labels[k],
+            'method': 'animate',
+        }
+        for k, f in enumerate(frames)
+    ],
+}]
+
+# Кнопки Play/Stop для анимации
+updatemenus = [{
+    'type': 'buttons', 'showactive': False,
+    'x': 0.05, 'y': -0.05, 'xanchor': 'left',
+    'buttons': [
+        {'label': '▶ Анимация', 'method': 'animate',
+         'args': [None, {'frame': {'duration': 800, 'redraw': True},
+                          'fromcurrent': True}]},
+        {'label': '⏸ Стоп', 'method': 'animate',
+         'args': [[None], {'frame': {'duration': 0, 'redraw': True},
+                            'mode': 'immediate'}]},
+    ],
+}]
+
+base_fig.update_layout(sliders=sliders, updatemenus=updatemenus)
+base_fig
+```
+
+## 2. Observable JS — непрерывные слайдеры
+
+Бегунки `Inputs.range` меняют параметры непрерывно, фигура перестраивается в реальном
+времени. Plotly.js подключён через CDN в `<head>` страницы (см. frontmatter).
+Этот вариант **работает только в HTML** — для PDF нужен статичный Plotly Python выше.
+
+```{{ojs}}
+// === Слайдеры ===
+viewof xf = Inputs.range([20, 150], {value: 60, step: 1, label: "Полудлина Xf, м"})
+viewof hf = Inputs.range([5, 50],   {value: 20, step: 1, label: "Высота hf, м"})
+viewof wf = Inputs.range([1, 30],   {value: 5,  step: 0.5, label: "Ширина wf, мм"})
+
+widthScale = 500
+
+// === Геометрия (параллелепипед + круговой пласт) ===
+buildScene = (xfVal, hfVal, wfMm) => {
+  const r = 200, h = 30, n = 40;
+  const wfDisp = (wfMm / 1000) * widthScale;
+  const hx = xfVal, hy = wfDisp / 2, hz = hfVal / 2;
+
+  // Скважина
+  const well = {
+    type: 'scatter3d',
+    x: [0, 0], y: [0, 0], z: [-h / 2 - 30, h / 2 + 30],
+    mode: 'lines', line: {color: '#222', width: 8},
+    name: 'Скважина', hoverinfo: 'skip',
+  };
+
+  // Трещина (8 вершин, 12 треугольников)
+  const v = [
+    [-hx, -hy, -hz], [+hx, -hy, -hz], [+hx, +hy, -hz], [-hx, +hy, -hz],
+    [-hx, -hy, +hz], [+hx, -hy, +hz], [+hx, +hy, +hz], [-hx, +hy, +hz],
+  ];
+  const ijk = [
+    [0,1,2], [0,2,3], [4,5,6], [4,6,7],
+    [3,2,6], [3,6,7], [0,1,5], [0,5,4],
+    [1,2,6], [1,6,5], [0,3,7], [0,7,4],
+  ];
+  const fracture = {
+    type: 'mesh3d',
+    x: v.map(p => p[0]), y: v.map(p => p[1]), z: v.map(p => p[2]),
+    i: ijk.map(t => t[0]), j: ijk.map(t => t[1]), k: ijk.map(t => t[2]),
+    color: '#ff6b35', opacity: 0.9, name: 'Трещина ГРП',
+  };
+
+  // Пласт: боковая поверхность + 2 крышки через Mesh3d
+  const xR = [], yR = [], zR = [];
+  const iA = [], jA = [], kA = [];
+
+  // Боковая поверхность: 2 кольца (z=±h/2) по n точек
+  for (let kk = 0; kk < 2; kk++) {
+    for (let ii = 0; ii < n; ii++) {
+      const t = 2 * Math.PI * ii / n;
+      xR.push(r * Math.cos(t));
+      yR.push(r * Math.sin(t));
+      zR.push(kk === 0 ? -h / 2 : h / 2);
+    }
+  }
+  for (let ii = 0; ii < n; ii++) {
+    const a = ii, b = (ii + 1) % n;
+    const c = n + ii, d = n + ((ii + 1) % n);
+    iA.push(a, b); jA.push(b, d); kA.push(c, c);
+  }
+
+  // Верхняя крышка (диск)
+  const topC = xR.length;
+  xR.push(0); yR.push(0); zR.push(h / 2);
+  for (let ii = 0; ii < n; ii++) {
+    const t = 2 * Math.PI * ii / n;
+    xR.push(r * Math.cos(t));
+    yR.push(r * Math.sin(t));
+    zR.push(h / 2);
+  }
+  for (let ii = 0; ii < n; ii++) {
+    iA.push(topC);
+    jA.push(topC + 1 + ii);
+    kA.push(topC + 1 + ((ii + 1) % n));
+  }
+
+  // Нижняя крышка
+  const botC = xR.length;
+  xR.push(0); yR.push(0); zR.push(-h / 2);
+  for (let ii = 0; ii < n; ii++) {
+    const t = 2 * Math.PI * ii / n;
+    xR.push(r * Math.cos(t));
+    yR.push(r * Math.sin(t));
+    zR.push(-h / 2);
+  }
+  for (let ii = 0; ii < n; ii++) {
+    iA.push(botC);
+    jA.push(botC + 1 + ((ii + 1) % n));  // reversed winding
+    kA.push(botC + 1 + ii);
+  }
+
+  const reservoir = {
+    type: 'mesh3d',
+    x: xR, y: yR, z: zR,
+    i: iA, j: jA, k: kA,
+    color: '#a8d5e2', opacity: 0.30, name: 'Пласт',
+    hoverinfo: 'skip', flatshading: true,
+  };
+
+  // Подписи
+  const labels = {
+    type: 'scatter3d',
+    x: [xfVal * 0.55, xfVal + 12, xfVal + 12],
+    y: [0, 0, wfDisp / 2 + 0.1],
+    z: [0, hfVal / 2 + 5, -hfVal / 2 - 5],
+    mode: 'text',
+    text: [
+      `Xf = ${xfVal.toFixed(0)} м`,
+      `hf = ${hfVal.toFixed(0)} м`,
+      `wf = ${wfMm.toFixed(1)} мм (×${widthScale})`,
+    ],
+    textfont: {size: 14, color: ['#c0392b', '#2980b9', '#27ae60']},
+    showlegend: false, hoverinfo: 'skip',
+  };
+
+  return {
+    traces: [reservoir, well, fracture, labels],
+    layout: {
+      title: `Xf = ${xfVal.toFixed(0)} м, hf = ${hfVal.toFixed(0)} м, wf = ${wfMm.toFixed(1)} мм`,
+      scene: {
+        xaxis: {title: 'X, м'},
+        yaxis: {title: 'Y, м'},
+        zaxis: {title: 'Z, м'},
+        aspectmode: 'data',
+        camera: {eye: {x: 1.5, y: 1.5, z: 0.8}},
+      },
+      margin: {l: 0, r: 0, b: 0, t: 40},
+      showlegend: true,
+    },
+  };
+}
+
+// === Рендер: при изменении xf/hf/wf ячейка пересчитывается, OJS вставляет
+//     новый div в нужное место страницы, старый Plotly чистится через
+//     invalidation, чтобы не накапливался. ===
+{
+  const fig = buildScene(xf, hf, wf);
+  const div = DOM.element('div', {style: 'width:100%; height:600px; margin: 1em 0;'});
+  if (typeof Plotly !== 'undefined') {
+    Plotly.newPlot(div, fig.traces, fig.layout, {responsive: true});
+    invalidation.then(() => Plotly.purge(div));
+  } else {
+    div.textContent = 'Plotly.js не загрузился — проверьте CDN в frontmatter.';
+  }
+  return div;
+}
+```
+
+# Что ещё можно использовать для интерактивных рисунков в методичке
+
+## Внутри Quarto (минимальная возня)
+
+| Инструмент | Что умеет | Когда брать |
+|---|---|---|
+| **Plotly** (Python / JS / R) | 2D + 3D, встроенный toolbar (зум, поворот, скачивание PNG), sliders, animations. | Уже используем. Лучшее «из коробки» для методички. |
+| **Observable Plot** (через `{ojs}` или Altair) | Декларативный 2D, brushing, linked views, faceting. | Графики функций, гистограммы, скаттеры с фильтрами. |
+| **Mermaid** | Flowcharts, sequence diagrams, class diagrams, state diagrams. | Технологические схемы ГРП,业务流程. Встроен в Quarto — ` ```{mermaid} `. |
+| **Graphviz** | Графы, деревья, иерархии. | Деревья решений, графы зависимостей. Встроен в Quarto. |
+| **KaTeX / MathJax** | Формулы. | Уже работают в Quarto. |
+
+## Через HTML-блоки (`{{< include >}}` или raw HTML)
+
+| Инструмент | Что умеет | Когда брать |
+|---|---|---|
+| **Three.js** | Низкоуровневый WebGL 3D, шейдеры, анимация, освещение. | Кастомные сцены (распространение трещины во времени, сетка ГРП). Больше кода, но полный контроль. |
+| **deck.gl** | WebGL для очень больших 3D-сцен (миллионы точек). | Карты с тысячами трещин — overkill для методички. |
+| **D3.js** | Кастомные 2D-визуализации любой сложности. | Нестандартные графики (профили давления, фазовые диаграммы). |
+| **Babylon.js / regl** | Альтернативы Three.js. | Если в команде уже есть опыт. |
+
+## Python-альтернативы Plotly
+
+| Инструмент | Отличие от Plotly | Когда брать |
+|---|---|---|
+| **Bokeh** | Похожий API, лучше для дашбордов. | Если планируется отдельное приложение поверх методички. |
+| **Altair** (Vega-Lite) | Декларативный, компактный код. | Статистические графики, faceting, linked brushing. |
+| **Matplotlib** | Статика (PDF-вектор). Эталон для печати. | Финальные «опорные» графики для PDF-версии. |
+
+## Для приложений (отдельный жанр)
+
+**Dash**, **Streamlit**, **Shiny (R)** — это уже не «страница методички», а полноценное
+интерактивное приложение с сервером. Можно встроить результат через `<iframe>`,
+но проще держать их отдельно.
+
+## Для печати (PDF)
+
+Quarto рендерит PDF и для Plotly вызывает `kaleido` (статичный PNG). Это работает
+автоматически, но:
+
+- **Печатное качество:** для PDF лучше экспортировать через Matplotlib
+  (`fig.savefig('plot.pdf')` — вектор). Если страница учебная и идёт в печать,
+  держите Matplotlib как «эталонную» версию каждого ключевого графика.
+- **Один источник — два формата:** Quarto поддерживает несколько `format:` в frontmatter.
+  В `format.html` — Plotly, в `format.pdf` — `code-fold: false` + вызовы `fig.show()`
+  + `kaleido` подхватит. Если график должен сильно отличаться между HTML и PDF,
+  делайте две версии с `{{< include >}}` или условным кодом.
+
+## Рекомендация для методички ГРП
+
+- **3D-схемы** (скважина, трещина, пласт) → **Plotly** (уже сделано выше).
+- **2D-графики** (кривые P(t), Q(t), диаграммы диагностики) → **Observable Plot** или
+  **Altair** — меньше кода, есть brushing.
+- **Технологические схемы** (стадии ГРП, схема обвязки) → **Mermaid** — встроен
+  в Quarto, не нужно ничего ставить.
+- **Финальные иллюстрации для PDF** → **Matplotlib** + `savefig('plot.pdf')` —
+  вектор, идеально для печати.
+
+## Перед коммитом
+
+Прогнать ту же тройку, что в CI (см. `AGENTS.md`):
+
+```bash
+pytest -q
+ruff check src tests
+quarto render notebooks/
+```
+
+Plotly и kaleido уже добавлены в `[dev]` (`pyproject.toml`) — после
+`pip install -e .[dev]` рендер пройдёт.

@@ -34,6 +34,10 @@ dev = [
     # runtime пакета fracbook.
     "notebook>=7.0",
     "matplotlib>=3.9",
+    # plotly — для интерактивных 3D-схем в notebooks/index.qmd.
+    # kaleido — для экспорта Plotly в PNG/PDF/SVG (нужно при quarto render в PDF).
+    "plotly>=5.22",
+    "kaleido>=0.2",
 ]
 
 notebooks = [
