@@ -60,14 +60,14 @@ jobs:
       - name: Render book (smoke-test .qmd)
         run: quarto render book/
 
-      # `enablement: true` говорит configure-pages включить GitHub Pages,
-      # если репозиторий его ещё не настроил. Без этого первый запуск падает
-      # с "Get Pages site failed" — Pages не существует до ручного включения
-      # в Settings → Pages.
+      # configure-pages@v5 НЕ умеет создавать Pages-сайт через GITHUB_TOKEN —
+      # POST /repos/{owner}/{repo}/pages требует `administration:write`,
+      # а встроенный GITHUB_TOKEN это разрешение получить не может
+      # (см. actions/configure-pages#40). Поэтому Pages должен быть
+      # включён вручную в Settings → Pages → Source: GitHub Actions ОДИН РАЗ.
+      # configure-pages здесь только проверяет, что сайт уже настроен.
       - name: Setup Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
