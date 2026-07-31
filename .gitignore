@@ -3,6 +3,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
+*.html
+**/*.quarto_ipynb
+**/*.quarto_ipynb_*
 
 .venv/
 venv/
@@ -59,8 +62,12 @@ notebooks/scratch/
 .DS_Store
 Thumbs.db
 
+.posit/
+
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+_render.err
+_render.out

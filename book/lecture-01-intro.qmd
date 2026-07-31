@@ -25,167 +25,313 @@ title: "Лекция 1. Введение в дисциплину"
 
 ## Схема скважины с трещиной ГРП
 
-На @fig-fracture-scheme представлена интерактивная 3D-схема вертикальной
-скважины с трещиной гидроразрыва в круговом пласте. Скважина показана
-вертикальной линией, проходящей через центр пласта; трещина — оранжевый
-параллелепипед, пересекающий скважину; пласт — полупрозрачный цилиндр
-(визуально увеличенная прозрачность, чтобы трещина была видна).
+Интерактивная 3D-схема вертикальной скважины с трещиной гидроразрыва в круговом пласте
+реализована на **Three.js**. Скважина показана вертикальной линией, проходящей через
+центр пласта; трещина — оранжевый параллелепипед, пересекающий скважину; пласт —
+полупрозрачный цилиндр (визуально увеличенная прозрачность, чтобы трещина была видна).
 
-Бегунки позволяют менять полудлину $x_f$, высоту $h_f$ и ширину $w_f$
-трещины; сцену можно вращать мышью (зажать левую кнопку), зумить колесом,
-скачивать PNG через встроенный toolbar Plotly.
+Бегунки мутируют `BufferGeometry` в place, обновление идёт через `requestAnimationFrame`,
+WebGL-контекст сохраняется между тиками — поэтому сцена не пересоздаётся и обновление
+визуально гладкое даже на слабых машинах. Сцену можно вращать мышью (зажать левую
+кнопку), зумить колесом.
 
 ::: {.callout-note}
-## Замечание про ширину трещины
-
-Реальная ширина (апертура) трещины $w_f$ после ГРП составляет
-единицы миллиметров, тогда как полудлина $x_f$ — десятки и сотни метров.
-Соотношение масштабов — 3–4 порядка. Чтобы параллелепипед был виден
-на схеме, ширина визуально увеличена в 500 раз; в подписях это явно
-отмечено (`$w_f = X$ мм (×500)`). Это стандартный приём в учебных
+Реальная ширина (апертура) трещины $w_f$ после ГРП составляет единицы миллиметров,
+тогда как полудлина $x_f$ — десятки и сотни метров. Соотношение масштабов — 3–4 порядка.
+Чтобы параллелепипед был виден на схеме, ширина визуально увеличена в 500 раз; в
+подписях это явно отмечено (`$w_f = X$ мм (×500)`). Это стандартный приём в учебных
 3D-схемах ГРП.
 :::
 
 ```{ojs}
-//| label: fig-fracture-scheme
-//| fig-cap: "Скважина с трещиной ГРП в круговом пласте. Бегунки меняют полудлину, высоту и ширину трещины."
+//| label: fig-fracture-scheme-three
+//| fig-cap: "Скважина с трещиной ГРП в круговом пласте (Three.js). Бегунки мутируют геометрию в place — обновление плавное, без пересоздания сцены."
 //| echo: false
 
-// === Бегунки ===
-viewof xf = Inputs.range([20, 150], {value: 60, step: 1, label: "Полудлина xf, м"})
-viewof hf = Inputs.range([5, 50],   {value: 20, step: 1, label: "Высота hf, м"})
-viewof wf = Inputs.range([1, 30],   {value: 5,  step: 0.5, label: "Ширина wf, мм"})
-
-widthScale = 500
-
-// === Геометрия ===
-buildScene = (xfVal, hfVal, wfMm) => {
-  const r = 200, h = 30, n = 40;
-  const wfDisp = (wfMm / 1000) * widthScale;
-  const hx = xfVal, hy = wfDisp / 2, hz = hfVal / 2;
-
-  const well = {
-    type: 'scatter3d',
-    x: [0, 0], y: [0, 0], z: [-h / 2 - 30, h / 2 + 30],
-    mode: 'lines', line: {color: '#222', width: 8},
-    name: 'Скважина', hoverinfo: 'skip',
-  };
-
-  const v = [
-    [-hx, -hy, -hz], [+hx, -hy, -hz], [+hx, +hy, -hz], [-hx, +hy, -hz],
-    [-hx, -hy, +hz], [+hx, -hy, +hz], [+hx, +hy, +hz], [-hx, +hy, +hz],
-  ];
-  const ijk = [
-    [0,1,2], [0,2,3], [4,5,6], [4,6,7],
-    [3,2,6], [3,6,7], [0,1,5], [0,5,4],
-    [1,2,6], [1,6,5], [0,3,7], [0,7,4],
-  ];
-  const fracture = {
-    type: 'mesh3d',
-    x: v.map(p => p[0]), y: v.map(p => p[1]), z: v.map(p => p[2]),
-    i: ijk.map(t => t[0]), j: ijk.map(t => t[1]), k: ijk.map(t => t[2]),
-    color: '#ff6b35', opacity: 0.9, name: 'Трещина ГРП',
-  };
-
-  const xR = [], yR = [], zR = [];
-  const iA = [], jA = [], kA = [];
-
-  for (let kk = 0; kk < 2; kk++) {
-    for (let ii = 0; ii < n; ii++) {
-      const t = 2 * Math.PI * ii / n;
-      xR.push(r * Math.cos(t));
-      yR.push(r * Math.sin(t));
-      zR.push(kk === 0 ? -h / 2 : h / 2);
-    }
-  }
-  for (let ii = 0; ii < n; ii++) {
-    const a = ii, b = (ii + 1) % n;
-    const c = n + ii, d = n + ((ii + 1) % n);
-    iA.push(a, b); jA.push(b, d); kA.push(c, c);
-  }
-
-  const topC = xR.length;
-  xR.push(0); yR.push(0); zR.push(h / 2);
-  for (let ii = 0; ii < n; ii++) {
-    const t = 2 * Math.PI * ii / n;
-    xR.push(r * Math.cos(t));
-    yR.push(r * Math.sin(t));
-    zR.push(h / 2);
-  }
-  for (let ii = 0; ii < n; ii++) {
-    iA.push(topC);
-    jA.push(topC + 1 + ii);
-    kA.push(topC + 1 + ((ii + 1) % n));
-  }
-
-  const botC = xR.length;
-  xR.push(0); yR.push(0); zR.push(-h / 2);
-  for (let ii = 0; ii < n; ii++) {
-    const t = 2 * Math.PI * ii / n;
-    xR.push(r * Math.cos(t));
-    yR.push(r * Math.sin(t));
-    zR.push(-h / 2);
-  }
-  for (let ii = 0; ii < n; ii++) {
-    iA.push(botC);
-    jA.push(botC + 1 + ((ii + 1) % n));
-    kA.push(botC + 1 + ii);
-  }
-
-  const reservoir = {
-    type: 'mesh3d',
-    x: xR, y: yR, z: zR,
-    i: iA, j: jA, k: kA,
-    color: '#a8d5e2', opacity: 0.30, name: 'Пласт',
-    hoverinfo: 'skip', flatshading: true,
-  };
-
-  const labels = {
-    type: 'scatter3d',
-    x: [xfVal * 0.55, xfVal + 12, xfVal + 12],
-    y: [0, 0, wfDisp / 2 + 0.1],
-    z: [0, hfVal / 2 + 5, -hfVal / 2 - 5],
-    mode: 'text',
-    text: [
-      `Xf = ${xfVal.toFixed(0)} м`,
-      `hf = ${hfVal.toFixed(0)} м`,
-      `wf = ${wfMm.toFixed(1)} мм (×${widthScale})`,
-    ],
-    textfont: {size: 14, color: ['#c0392b', '#2980b9', '#27ae60']},
-    showlegend: false, hoverinfo: 'skip',
-  };
-
-  return {
-    traces: [reservoir, well, fracture, labels],
-    layout: {
-      title: `Xf = ${xfVal.toFixed(0)} м, hf = ${hfVal.toFixed(0)} м, wf = ${wfMm.toFixed(1)} мм`,
-      scene: {
-        xaxis: {title: 'X, м'},
-        yaxis: {title: 'Y, м'},
-        zaxis: {title: 'Z, м'},
-        aspectmode: 'data',
-        camera: {eye: {x: 1.5, y: 1.5, z: 0.8}},
-      },
-      margin: {l: 0, r: 0, b: 0, t: 40},
-      showlegend: true,
-    },
-  };
-}
-
-// === Рендер ===
 {
-  const fig = buildScene(xf, hf, wf);
-  const div = DOM.element('div', {style: 'width:100%; height:600px; margin: 1em 0;'});
-  if (typeof Plotly !== 'undefined') {
-    Plotly.newPlot(div, fig.traces, fig.layout, {responsive: true});
-    invalidation.then(() => Plotly.purge(div));
-  } else {
-    div.textContent = 'Plotly.js не загрузился — проверьте CDN в _quarto.yml.';
+  // Один блок без реактивных зависимостей: сцена строится один раз,
+  // бегунки — обычные <input>, обработчики обновляют scale/позицию
+  // уже существующих Mesh-объектов. WebGL-контекст и камера сохраняются
+  // между тиками — поэтому сцена не моргает.
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'width:100%; margin: 1em 0; font-family: sans-serif;';
+
+  // Панель управления
+  const ctrls = document.createElement('div');
+  ctrls.style.cssText = 'display:flex; flex-wrap:wrap; gap:1.2em; align-items:center; margin-bottom:0.5em; font-size:0.95em;';
+
+  // Помощник для типографики LaTeX-формул через MathJax.
+  // Использует MathJax.tex2chtml напрямую — этот API рендерит LaTeX
+  // в CHTML-узел без привязки к MathJax «документу», в отличие от
+  // typesetPromise, который молча игнорирует элементы, добавленные
+  // после startup. Поэтому динамические метки (слайдеры, размерные
+  // подписи в сцене) типографируются так же, как формулы в тексте.
+  const typeset = (el) => {
+    if (!el) return;
+    const doRender = () => {
+      if (!window.MathJax || !window.MathJax.tex2chtml) return false;
+      const text = el.textContent;
+      if (!text) return true;  // нечего рендерить
+      el.innerHTML = text.replace(/\$([^$]+)\$/g, (m, latex) => {
+        try {
+          return window.MathJax.tex2chtml(latex, {display: false}).outerHTML;
+        } catch (e) {
+          return m;  // при ошибке рендера — оставить исходный текст
+        }
+      });
+      return true;
+    };
+    if (doRender()) return;
+    // MathJax ещё не загрузился — ждём startup, иначе поллим.
+    if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+      window.MathJax.startup.promise.then(doRender);
+    } else {
+      setTimeout(() => typeset(el), 100);
+    }
+  };
+
+  const makeSlider = (labelTex, min, max, value, step, unit) => {
+    const el = document.createElement('label');
+    el.style.cssText = 'display:flex; gap:0.4em; align-items:center;';
+    const labelEl = document.createElement('span');
+    labelEl.textContent = labelTex;  // LaTeX, например "Полудлина $x_f$"
+    el.appendChild(labelEl);
+    const inp = document.createElement('input');
+    inp.type = 'range'; inp.min = min; inp.max = max; inp.value = value; inp.step = step;
+    inp.style.cssText = 'vertical-align:middle;';
+    el.appendChild(inp);
+    const span = document.createElement('span');
+    span.textContent = value; span.style.cssText = 'min-width:2.5em; display:inline-block; text-align:right;';
+    el.appendChild(span);
+    const unitEl = document.createElement('span');
+    unitEl.textContent = unit;
+    el.appendChild(unitEl);
+    typeset(labelEl);
+    return {el, inp, span, unit, value, labelEl};
+  };
+
+  const xfC = makeSlider('Полудлина $x_f$', 20, 150, 60, 1, 'м');
+  const hfC = makeSlider('Высота $h_f$',     5,  50, 20, 1, 'м');
+  const wfC = makeSlider('Ширина $w_f$',     1,  30, 5,  0.5, 'мм');
+  ctrls.append(xfC.el, hfC.el, wfC.el);
+  wrap.appendChild(ctrls);
+
+  // Контейнер для canvas + оверлеев с размерными подписями.
+  // position:relative нужен, чтобы absolute-дочерние элементы (лейблы)
+  // позиционировались относительно него.
+  const canvasBox = document.createElement('div');
+  canvasBox.style.cssText =
+    'position:relative; width:100%; height:600px;' +
+    'border:1px solid #ddd; background:#fafafa; overflow:hidden;';
+  wrap.appendChild(canvasBox);
+
+  // Масштаб апертуры — объявляем ДО labelSpec, потому что tex() в
+  // замыкании обращается к widthScale, а const в TDZ до строки объявления.
+  const widthScale = 500;
+
+  // Размерные подписи: HTML-оверлеи, накладываются поверх canvas.
+  // Позиция вычисляется в render-цикле через vector.project(camera)
+  // — лейбл «прилипает» к своей точке в 3D при вращении камеры.
+  // Текст — LaTeX, рендерится MathJax (как формулы в основном тексте).
+  const labelSpec = [
+    {
+      pos: () => new THREE.Vector3(+xfC.inp.value * 0.55, 0, 0),
+      tex: () => `$x_f = ${+xfC.inp.value}$ м`,
+      color: '#c0392b',
+    },
+    {
+      pos: () => new THREE.Vector3(+xfC.inp.value + 12, 0, +hfC.inp.value / 2 + 5),
+      tex: () => `$h_f = ${+hfC.inp.value}$ м`,
+      color: '#2980b9',
+    },
+    {
+      pos: () => new THREE.Vector3(
+        +xfC.inp.value + 12,
+        (+wfC.inp.value / 1000) * widthScale / 2 + 0.1,
+        -(+hfC.inp.value / 2) - 5
+      ),
+      tex: () => `$w_f = ${(+wfC.inp.value).toFixed(1)}$ мм (×${widthScale})`,
+      color: '#27ae60',
+    },
+  ];
+  const labels = labelSpec.map(s => {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'position:absolute; pointer-events:none; transform:translate(-50%,-50%);' +
+      'font-size:14px; font-weight:600; white-space:nowrap;' +
+      'padding:2px 6px; background:rgba(255,255,255,0.85); border-radius:3px;';
+    el.style.color = s.color;
+    el.textContent = s.tex();
+    canvasBox.appendChild(el);
+    typeset(el);
+    return {...s, el};
+  });
+
+  if (typeof THREE === 'undefined') {
+    canvasBox.textContent = 'Three.js не загрузился — проверьте CDN в _include/header.html.';
+    return wrap;
   }
-  return div;
+
+  // Сцена
+  const r = 200, h = 30;
+  const W = canvasBox.clientWidth || 800;
+  const H = 600;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xfafafa);
+
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 5000);
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(W, H);
+  canvasBox.appendChild(renderer.domElement);
+
+  // Свет
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const dLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  dLight.position.set(300, 500, 400);
+  scene.add(dLight);
+
+  // Пласт: цилиндр + две крышки.
+  // Three.js CylinderGeometry по умолчанию ориентирован вдоль Y;
+  // поворачиваем на 90° вокруг X, чтобы ось цилиндра совпала с Z —
+  // тогда цилиндр стоит вертикально.
+  const cylMat = new THREE.MeshPhongMaterial({
+    color: 0xa8d5e2, transparent: true, opacity: 0.25,
+    side: THREE.DoubleSide, shininess: 0, depthWrite: false,
+  });
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 48, 1, true), cylMat);
+  cyl.rotation.x = Math.PI / 2;
+  scene.add(cyl);
+
+  // Крышки: CircleGeometry нормальна к Z, остаётся сдвинуть её по Z.
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(r, 48), cylMat);
+  cap.position.z = h / 2;
+  scene.add(cap);
+  const capB = new THREE.Mesh(new THREE.CircleGeometry(r, 48), cylMat);
+  capB.rotation.y = Math.PI;  // перевернуть нормаль вниз
+  capB.position.z = -h / 2;
+  scene.add(capB);
+
+  // Скважина — той же формы, что и пласт, тонкий цилиндр, ось тоже Z.
+  const well = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.5, 1.5, h + 60, 16),
+    new THREE.MeshPhongMaterial({color: 0x222222})
+  );
+  well.rotation.x = Math.PI / 2;
+  scene.add(well);
+
+  // Трещина: BoxGeometry единичного размера; размеры задаём через scale.
+  // Оси бокса: X = полудлина (горизонтально, перпендикулярно скважине),
+  //            Y = апертура (горизонтально, параллельно скважине),
+  //            Z = высота (вертикально, вдоль скважины).
+  // С масштабом (xf, wf_disp, hf) бокс оказывается вертикальной стенкой
+  // в плоскости XZ, пересекающей скважину.
+  const fracGeom = new THREE.BoxGeometry(1, 1, 1);
+  const frac = new THREE.Mesh(fracGeom, new THREE.MeshPhongMaterial({
+    color: 0xff6b35, transparent: true, opacity: 0.9, shininess: 30,
+  }));
+  scene.add(frac);
+  const fracEdges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(fracGeom),
+    new THREE.LineBasicMaterial({color: 0x000000})
+  );
+  scene.add(fracEdges);
+
+  // Камера: орбита по сферическим координатам, up = +Z (вертикаль сцены).
+  // phi=0 — вид сверху (вдоль +Z), phi=π/2 — горизонтально (плоскость XY).
+  const cam = {theta: -Math.PI / 4, phi: Math.PI / 3, dist: 520};
+  const applyCamera = () => {
+    camera.position.set(
+      cam.dist * Math.sin(cam.phi) * Math.cos(cam.theta),
+      cam.dist * Math.sin(cam.phi) * Math.sin(cam.theta),
+      cam.dist * Math.cos(cam.phi)
+    );
+    camera.up.set(0, 0, 1);
+    camera.lookAt(0, 0, 0);
+  };
+  applyCamera();
+
+  // Вращение и зум мышью
+  let dragging = false, lastX = 0, lastY = 0;
+  const onDown = e => { dragging = true; lastX = e.clientX; lastY = e.clientY; };
+  const onUp = () => { dragging = false; };
+  const onMove = e => {
+    if (!dragging) return;
+    cam.theta -= (e.clientX - lastX) * 0.008;
+    cam.phi = Math.max(-1.4, Math.min(1.4, cam.phi + (e.clientY - lastY) * 0.008));
+    lastX = e.clientX; lastY = e.clientY;
+    applyCamera();
+  };
+  const onWheel = e => {
+    e.preventDefault();
+    cam.dist = Math.max(150, Math.min(2000, cam.dist + e.deltaY * 0.6));
+    applyCamera();
+  };
+  renderer.domElement.addEventListener('mousedown', onDown);
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('mousemove', onMove);
+  renderer.domElement.addEventListener('wheel', onWheel, {passive: false});
+
+  // Обновление геометрии трещины (in-place, без пересоздания объектов)
+  // + пересчёт текста размерных подписей с повторной типографикой MathJax.
+  const update = () => {
+    const xf = +xfC.inp.value;
+    const hf = +hfC.inp.value;
+    const wf = +wfC.inp.value;
+    const wfDisp = (wf / 1000) * widthScale;
+    frac.scale.set(xf, wfDisp, hf);
+    fracEdges.scale.set(xf, wfDisp, hf);
+    xfC.span.textContent = xf;
+    hfC.span.textContent = hf;
+    wfC.span.textContent = wf.toFixed(1);
+    labels.forEach(l => { l.el.textContent = l.tex(); typeset(l.el); });
+  };
+  xfC.inp.addEventListener('input', update);
+  hfC.inp.addEventListener('input', update);
+  wfC.inp.addEventListener('input', update);
+  update();
+
+  // Рендер-цикл. На каждом кадре: рендер + пересчёт экранных координат
+  // размерных подписей. Сама геометрия меняется только в обработчике `input`,
+  // камера — только при drag/wheel, так что сцена не пересоздаётся и не
+  // моргает.
+  const animate = () => {
+    renderer.render(scene, camera);
+    const cw = canvasBox.clientWidth;
+    const ch = canvasBox.clientHeight;
+    const v = new THREE.Vector3();
+    labels.forEach(l => {
+      v.copy(l.pos()).project(camera);
+      // project() возвращает NDC в [-1, 1]; на экране — линейное отображение.
+      l.el.style.left = (v.x * 0.5 + 0.5) * cw + 'px';
+      l.el.style.top  = (-v.y * 0.5 + 0.5) * ch + 'px';
+      // Прячем подпись, если точка за камерой (project даёт инвертированный z).
+      l.el.style.display = (v.z < 1) ? '' : 'none';
+    });
+    requestAnimationFrame(animate);
+  };
+  animate();
+
+  // Освобождение ресурсов при перерендере ячейки
+  invalidation.then(() => {
+    window.removeEventListener('mouseup', onUp);
+    window.removeEventListener('mousemove', onMove);
+    renderer.domElement.removeEventListener('mousedown', onDown);
+    renderer.domElement.removeEventListener('wheel', onWheel);
+    renderer.dispose();
+    scene.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+        else o.material.dispose();
+      }
+    });
+  });
+
+  return wrap;
 }
 ```
-
 
 ## Модели оценки производительности скважин с трещинами ГРП
 
